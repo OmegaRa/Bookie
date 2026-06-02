@@ -4,9 +4,11 @@
 
 A self-hosted ebook manager built for simplicity. Organize your library, fetch metadata, and send books directly to your eReader.
 
+I have added the ability to host audiobooks, and the ability to listen to audiobooks and read the ebooks from the interface.
+
 [![Discord](https://img.shields.io/discord/1408095311661891796?label=Discord&logo=discord&style=for-the-badge)](https://discord.gg/CrsSPrBwsC)
 
-> This project is built with Claude.
+> This project is built with Claude and Github Copilot. 
 
 <img width="100%" alt="Bookie UI" src="https://github.com/user-attachments/assets/e0755ecb-c6f7-4ed3-b57e-337dd64876e7" />
 
