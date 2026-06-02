@@ -67,6 +67,13 @@ class Book(db.Model):
     # Cover
     cover_filename = db.Column(db.String(256))
 
+    # Audiobook metadata
+    is_audiobook = db.Column(db.Boolean, default=False)
+    duration = db.Column(db.Integer)  # Duration in seconds
+    narrator = db.Column(db.String(256))  # Audiobook narrator
+    audio_format = db.Column(db.String(16))  # mp3, m4b, aac, etc.
+    chapters = db.Column(db.Text)  # JSON array of chapter info
+
     # Timestamps
     date_added = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
     date_modified = db.Column(
@@ -106,6 +113,11 @@ class Book(db.Model):
             "cover_filename": self.cover_filename,
             "series": self.series,
             "series_order": self.series_order,
+            "is_audiobook": self.is_audiobook,
+            "duration": self.duration,
+            "narrator": self.narrator,
+            "audio_format": self.audio_format,
+            "chapters": self.chapters,
             "date_added": self.date_added.isoformat() if self.date_added else None,
             "date_modified": self.date_modified.isoformat() if self.date_modified else None,
             "tags": [bt.tag.name for bt in self.book_tags],

@@ -39,11 +39,13 @@ def _get_or_create_secret_key() -> str:
 # ---------------------------------------------------------------------------
 
 def extract_embedded_metadata(file_path: Path, ext: str) -> dict:
-    """Extract title/author/etc. from embedded EPUB or PDF metadata."""
+    """Extract title/author/etc. from embedded EPUB, PDF, or audio file metadata."""
     if ext == "epub":
         return _extract_epub_metadata(file_path)
     elif ext == "pdf":
         return _extract_pdf_metadata(file_path)
+    elif ext in ("mp3", "m4b", "m4a", "aac", "flac", "ogg", "wma", "opus"):
+        return _extract_audio_metadata(file_path)
     return {}
 
 
@@ -139,6 +141,47 @@ def _extract_pdf_metadata(path: Path) -> dict:
         logger.debug("PDF metadata extraction failed: %s", exc)
         return {}
 
+
+def _extract_audio_metadata(path: Path) -> dict:
+    """Extract metadata from MP3, M4B, FLAC, and other audio formats."""
+    try:
+        from mutagen import File
+        audio = File(str(path))
+        if audio is None:
+            return {}
+
+        # Helper to safely get tag values
+        def get_tag(key, fallback_keys=None):
+            val = audio.get(key)
+            if val:
+                return str(val[0]) if isinstance(val, list) and val else str(val)
+            if fallback_keys:
+                for fk in fallback_keys:
+                    val = audio.get(fk)
+                    if val:
+                        return str(val[0]) if isinstance(val, list) and val else str(val)
+            return None
+
+        duration = None
+        try:
+            if audio.info and hasattr(audio.info, 'length'):
+                duration = int(audio.info.length)
+        except Exception:
+            pass
+
+        return {
+            "title": get_tag("TIT2", ["©nam", "Title"]),  # Title
+            "author": get_tag("TPE1", ["©ART", "Artist"]),  # Performer/Artist
+            "narrator": get_tag("TPE2", ["©NAR"]),  # Narrator/Band
+            "description": get_tag("TIT3", ["©cmt", "Description"]),  # Subtitle/Comments
+            "publisher": get_tag("TPUB", ["©pub", "Publisher"]),  # Publisher
+            "published_date": get_tag("TDRC", ["©day", "Year"]),  # Recording date/Year
+            "duration": duration,
+        }
+    except Exception as exc:
+        logger.debug("Audio metadata extraction failed: %s", exc)
+        return {}
+
 from flask import (
     Flask,
     jsonify,
@@ -209,8 +252,11 @@ logging.getLogger().addHandler(_log_buffer)
 
 BOOKS_DIR = DATA_DIR / "books"
 COVERS_DIR = DATA_DIR / "covers"
-ALLOWED_EXTENSIONS = {"epub", "pdf", "mobi", "azw", "azw3", "fb2", "djvu", "cbz", "cbr", "txt"}
+ALLOWED_EXTENSIONS = {"epub", "pdf", "mobi", "azw", "azw3", "fb2", "djvu", "cbz", "cbr", "txt",
+                      "mp3", "m4b", "m4a", "aac", "flac", "ogg", "wma", "opus"}
+AUDIOBOOK_EXTENSIONS = {"mp3", "m4b", "m4a", "aac", "flac", "ogg", "wma", "opus"}
 MAX_UPLOAD_MB = 128
+MAX_AUDIOBOOK_MB = 500  # Larger limit for audiobooks
 
 # Magic-byte signatures for formats where we can reliably verify content.
 # Extensions not listed here are accepted on extension alone (txt, fb2, mobi, etc.
@@ -223,6 +269,11 @@ _MAGIC_BYTES: dict[str, list[bytes]] = {
              b"Rar!\x1a\x07\x01\x00",  # RAR v5
              b"PK\x03\x04"],            # some CBRs are actually ZIPs
     "djvu": [b"AT&TFORM"],
+    "mp3":  [b"\xff\xfb", b"\xff\xfa", b"ID3"],  # MP3 syncword or ID3 tag
+    "m4b":  [b"\x00\x00\x00\x18ftypM4B"],        # M4B atom signature
+    "m4a":  [b"\x00\x00\x00\x20ftypisom"],       # M4A ISO Base Media signature
+    "flac": [b"fLaC"],                            # FLAC signature
+    "ogg":  [b"OggS"],                            # OGG signature
 }
 _MAGIC_READ_BYTES = 8  # max prefix length we need to read
 
@@ -569,6 +620,7 @@ def create_app():
                 file_format=ext,
                 file_size=path.stat().st_size,
                 title=path.stem,
+                is_audiobook=ext in AUDIOBOOK_EXTENSIONS,
             )
             db.session.add(book)
             db.session.flush()
@@ -640,6 +692,7 @@ def create_app():
             file_format=ext,
             file_size=size,
             title=Path(filename).stem,
+            is_audiobook=ext in AUDIOBOOK_EXTENSIONS,
         )
         db.session.add(book)
         db.session.commit()
@@ -833,6 +886,40 @@ def create_app():
         if not filepath.exists():
             abort(404)
         return send_file(str(filepath), as_attachment=True, download_name=Path(book.filename).name)
+
+    @app.route("/api/audiobooks/<int:book_id>/stream", methods=["GET"])
+    @login_required
+    def stream_audiobook(book_id):
+        """Stream audiobook with range request support for seeking."""
+        book = Book.query.get_or_404(book_id)
+        if not book.is_audiobook:
+            abort(404)
+        filepath = (BOOKS_DIR / book.filename).resolve()
+        if not filepath.is_relative_to(BOOKS_DIR.resolve()):
+            abort(400)
+        if not filepath.exists():
+            abort(404)
+        # Flask/Werkzeug automatically handles range requests (Range header)
+        mimetype = f"audio/{book.audio_format}" if book.audio_format else "audio/mpeg"
+        return send_file(str(filepath), mimetype=mimetype)
+
+    @app.route("/api/audiobooks/<int:book_id>/metadata", methods=["GET"])
+    @login_required
+    def get_audiobook_metadata(book_id):
+        """Get full audiobook metadata including chapters."""
+        book = Book.query.get_or_404(book_id)
+        if not book.is_audiobook:
+            abort(404)
+        return jsonify({
+            "id": book.id,
+            "title": book.title,
+            "author": book.author,
+            "narrator": book.narrator,
+            "duration": book.duration,
+            "format": book.audio_format,
+            "chapters": json.loads(book.chapters) if book.chapters else [],
+            "file_size": book.file_size,
+        })
 
     @app.route("/api/books/<int:book_id>/rename", methods=["POST"])
     @login_required

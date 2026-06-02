@@ -29,6 +29,13 @@ export interface Book {
   series: string | null
   series_order: number | null
 
+  // Audiobook metadata
+  is_audiobook: boolean
+  duration: number | null
+  narrator: string | null
+  audio_format: string | null
+  chapters: string | null
+
   // Timestamps
   date_added: string
   date_modified: string

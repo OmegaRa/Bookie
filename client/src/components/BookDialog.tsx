@@ -1,11 +1,13 @@
 import { useState, useRef, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { BookOpen, Trash2, Save, Image, ChevronDown, Check, AlertCircle } from 'lucide-react'
+import { BookOpen, Trash2, Save, Image, ChevronDown, Check, AlertCircle, X } from 'lucide-react'
 import * as api from '../api/client'
 import { Book, Tag, MetaResult } from '../types'
 import Dialog from './Dialog'
 import MetaDialog from './MetaDialog'
 import CoverDialog from './CoverDialog'
+import AudiobookPlayer from './AudiobookPlayer'
+import EbookReader from './EbookReader'
 import Spinner from './Spinner'
 
 interface BookDialogProps {
@@ -126,6 +128,7 @@ export default function BookDialog({ bookId, onClose, onDelete }: BookDialogProp
 
   const [showMetaDialog, setShowMetaDialog] = useState(false)
   const [showCoverDialog, setShowCoverDialog] = useState(false)
+  const [showReader, setShowReader] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(false)
 
   // Clean up object URLs on unmount
@@ -260,6 +263,9 @@ export default function BookDialog({ bookId, onClose, onDelete }: BookDialogProp
   const isSaving = saveMutation.isPending
   const isDeleting = deleteMutation.isPending
 
+  // Check if book is a readable ebook format
+  const isReadableFormat = book && ['epub', 'pdf'].includes(book.file_format?.toLowerCase() || '')
+
   const footer = (
     <div className="flex items-center justify-between gap-3">
       <button
@@ -278,6 +284,15 @@ export default function BookDialog({ bookId, onClose, onDelete }: BookDialogProp
       </button>
 
       <div className="flex items-center gap-2">
+        {isReadableFormat && (
+          <button
+            type="button"
+            onClick={() => setShowReader(true)}
+            className="px-3 py-2 rounded text-sm font-medium text-ink border border-accent bg-accent/10 hover:bg-accent/20 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+          >
+            Read
+          </button>
+        )}
         <button
           type="button"
           onClick={() => setShowMetaDialog(true)}
@@ -313,9 +328,17 @@ export default function BookDialog({ bookId, onClose, onDelete }: BookDialogProp
         )}
 
         {book && (
-          <div className="p-5 flex flex-col sm:flex-row gap-6">
-            {/* Cover column */}
-            <div className="shrink-0 flex flex-col items-center gap-3 w-1/2 mx-auto sm:mx-0 sm:w-40">
+          <div className="p-5 flex flex-col gap-6">
+            {/* Audiobook Player - if it's an audiobook */}
+            {book.is_audiobook && (
+              <div className="w-full">
+                <AudiobookPlayer book={book} />
+              </div>
+            )}
+
+            <div className="flex flex-col sm:flex-row gap-6">
+              {/* Cover column */}
+              <div className="shrink-0 flex flex-col items-center gap-3 w-1/2 mx-auto sm:mx-0 sm:w-40">
               <div className="w-full aspect-[2/3] rounded-lg overflow-hidden bg-surface-raised border border-line flex items-center justify-center">
                 {coverUrl ? (
                   <img
@@ -395,6 +418,7 @@ export default function BookDialog({ bookId, onClose, onDelete }: BookDialogProp
                 </div>
               )}
             </div>
+            </div>
           </div>
         )}
 
@@ -430,6 +454,25 @@ export default function BookDialog({ bookId, onClose, onDelete }: BookDialogProp
             if (applyCover && result.cover_url) setPendingCover({ url: result.cover_url })
           }}
         />
+      )}
+
+      {showReader && book && (
+        <div className="fixed inset-0 z-50 bg-surface-card flex flex-col">
+          {/* Close button */}
+          <div className="absolute top-4 right-4 z-10">
+            <button
+              onClick={() => setShowReader(false)}
+              className="p-2 rounded bg-surface-raised hover:bg-surface-high border border-line text-on-surface transition-colors"
+              aria-label="Close reader"
+            >
+              <X size={20} />
+            </button>
+          </div>
+          {/* Reader */}
+          <div className="flex-1 min-h-0">
+            <EbookReader book={book} onClose={() => setShowReader(false)} />
+          </div>
+        </div>
       )}
     </>
   )
