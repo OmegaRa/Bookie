@@ -129,6 +129,7 @@ export default function BookDialog({ bookId, onClose, onDelete }: BookDialogProp
   const [showMetaDialog, setShowMetaDialog] = useState(false)
   const [showCoverDialog, setShowCoverDialog] = useState(false)
   const [showReader, setShowReader] = useState(false)
+  const [showAudioPlayer, setShowAudioPlayer] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(false)
 
   // Clean up object URLs on unmount
@@ -293,6 +294,15 @@ export default function BookDialog({ bookId, onClose, onDelete }: BookDialogProp
             Read
           </button>
         )}
+        {book?.is_audiobook && (
+          <button
+            type="button"
+            onClick={() => setShowAudioPlayer(true)}
+            className="px-3 py-2 rounded text-sm font-medium text-ink border border-accent bg-accent/10 hover:bg-accent/20 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+          >
+            Listen
+          </button>
+        )}
         <button
           type="button"
           onClick={() => setShowMetaDialog(true)}
@@ -329,12 +339,7 @@ export default function BookDialog({ bookId, onClose, onDelete }: BookDialogProp
 
         {book && (
           <div className="p-5 flex flex-col gap-6">
-            {/* Audiobook Player - if it's an audiobook */}
-            {book.is_audiobook && (
-              <div className="w-full">
-                <AudiobookPlayer book={book} />
-              </div>
-            )}
+            
 
             <div className="flex flex-col sm:flex-row gap-6">
               {/* Cover column */}
@@ -458,19 +463,26 @@ export default function BookDialog({ bookId, onClose, onDelete }: BookDialogProp
 
       {showReader && book && (
         <div className="fixed inset-0 z-50 bg-surface-card flex flex-col">
-          {/* Close button */}
+          {/* Reader */}
+          <div className="flex-1 min-h-0">
+            <EbookReader book={book} onClose={() => setShowReader(false)} />
+          </div>
+        </div>
+      )}
+
+      {showAudioPlayer && book && (
+        <div className="fixed inset-0 z-50 bg-surface flex flex-col">
           <div className="absolute top-4 right-4 z-10">
             <button
-              onClick={() => setShowReader(false)}
-              className="p-2 rounded bg-surface-raised hover:bg-surface-high border border-line text-on-surface transition-colors"
-              aria-label="Close reader"
+              onClick={() => setShowAudioPlayer(false)}
+              className="p-2 rounded bg-surface-raised hover:bg-surface-high border border-line text-ink transition-colors"
+              aria-label="Close player"
             >
               <X size={20} />
             </button>
           </div>
-          {/* Reader */}
           <div className="flex-1 min-h-0">
-            <EbookReader book={book} onClose={() => setShowReader(false)} />
+            <AudiobookPlayer book={book} onClose={() => setShowAudioPlayer(false)} />
           </div>
         </div>
       )}

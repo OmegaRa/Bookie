@@ -137,19 +137,19 @@ export default function EpubReader({ book, onClose }: EpubReaderProps) {
   }
 
   return (
-    <div className="flex flex-col h-full bg-white rounded-lg overflow-hidden border border-line">
+    <div className="flex flex-col h-full bg-surface-card rounded-lg overflow-hidden border border-line">
       {/* Header */}
-      <div className="flex items-center justify-between gap-4 p-3 border-b border-line bg-gray-100">
+      <div className="flex items-center justify-between gap-4 p-3 border-b border-line bg-surface-raised">
         <div className="min-w-0">
-          <h3 className="text-sm font-semibold text-gray-900 truncate">
+          <h3 className="text-sm font-semibold text-ink truncate">
             {book.title || book.filename}
           </h3>
-          <p className="text-xs text-gray-600">{totalPages}</p>
+          <p className="text-xs text-ink-muted">{totalPages}</p>
         </div>
         <div className="flex items-center gap-2 shrink-0">
           <button
             onClick={() => setShowSettings(!showSettings)}
-            className="p-1 hover:bg-gray-200 rounded transition-colors text-gray-600 hover:text-gray-900"
+            className="p-1 hover:bg-surface-high rounded transition-colors text-ink-muted hover:text-ink"
             title="Reading settings"
           >
             <Settings size={18} />
@@ -157,7 +157,7 @@ export default function EpubReader({ book, onClose }: EpubReaderProps) {
           {onClose && (
             <button
               onClick={onClose}
-              className="p-1 hover:bg-gray-200 rounded transition-colors text-gray-600 hover:text-gray-900"
+              className="p-1 hover:bg-surface-high rounded transition-colors text-ink-muted hover:text-ink"
               title="Close reader"
             >
               <X size={18} />
@@ -168,9 +168,9 @@ export default function EpubReader({ book, onClose }: EpubReaderProps) {
 
       {/* Settings Panel */}
       {showSettings && (
-        <div className="px-4 py-3 border-b border-line bg-gray-50 space-y-3">
+        <div className="px-4 py-3 border-b border-line bg-surface space-y-3">
           <div className="flex items-center gap-3">
-            <label className="text-xs font-medium text-gray-700 whitespace-nowrap">
+            <label className="text-xs font-medium text-ink whitespace-nowrap">
               Font Size:
             </label>
             <input
@@ -180,17 +180,17 @@ export default function EpubReader({ book, onClose }: EpubReaderProps) {
               step="5"
               value={fontSize}
               onChange={handleFontSizeChange}
-              className="flex-1 h-2 bg-gray-300 rounded accent-accent"
+              className="flex-1 h-2 bg-line rounded accent-accent"
             />
-            <span className="text-xs text-gray-600 w-8 text-right">{fontSize}%</span>
+            <span className="text-xs text-ink-muted w-8 text-right">{fontSize}%</span>
           </div>
         </div>
       )}
 
       {/* Reader Container */}
-      <div className="flex-1 overflow-hidden relative bg-white min-h-0">
+      <div className="flex-1 overflow-hidden relative bg-surface-card min-h-0">
         {isLoading && (
-          <div className="absolute inset-0 flex items-center justify-center bg-white/50 z-10">
+          <div className="absolute inset-0 flex items-center justify-center bg-surface-card/50 z-10">
             <div className="animate-spin">
               <div className="w-8 h-8 border-2 border-accent border-t-transparent rounded-full" />
             </div>
@@ -203,22 +203,22 @@ export default function EpubReader({ book, onClose }: EpubReaderProps) {
       </div>
 
       {/* Navigation Footer */}
-      <div className="flex items-center justify-center gap-2 p-3 border-t border-line bg-gray-100">
+      <div className="flex items-center justify-center gap-2 p-3 border-t border-line bg-surface-raised">
         <button
           onClick={handlePrevious}
           disabled={isLoading}
-          className="p-2 hover:bg-gray-200 disabled:text-gray-400 transition-colors text-gray-700 rounded"
+          className="p-2 hover:bg-surface-high disabled:text-ink-faint transition-colors text-ink rounded"
           title="Previous page"
         >
           <ChevronLeft size={20} />
         </button>
-        <span className="text-xs text-gray-600 min-w-16 text-center">
+        <span className="text-xs text-ink-muted min-w-16 text-center">
           {totalPages}
         </span>
         <button
           onClick={handleNext}
           disabled={isLoading}
-          className="p-2 hover:bg-gray-200 disabled:text-gray-400 transition-colors text-gray-700 rounded"
+          className="p-2 hover:bg-surface-high disabled:text-ink-faint transition-colors text-ink rounded"
           title="Next page"
         >
           <ChevronRight size={20} />

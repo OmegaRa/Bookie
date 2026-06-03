@@ -84,17 +84,17 @@ export default function PdfReader({ book, onClose }: PdfReaderProps) {
       {/* Header */}
       <div className="flex items-center justify-between gap-4 p-3 border-b border-line bg-surface-raised">
         <div className="min-w-0">
-          <h3 className="text-sm font-semibold text-on-surface truncate">
+          <h3 className="text-sm font-semibold text-ink truncate">
             {book.title || book.filename}
           </h3>
-          <p className="text-xs text-on-surface-variant">
+          <p className="text-xs text-ink-muted">
             Page {currentPage} of {totalPages}
           </p>
         </div>
         {onClose && (
           <button
             onClick={onClose}
-            className="p-1 hover:bg-surface-high rounded transition-colors text-on-surface-variant hover:text-on-surface"
+            className="p-1 hover:bg-surface-high rounded transition-colors text-ink-muted hover:text-ink"
             title="Close reader"
           >
             <X size={18} />
@@ -125,7 +125,7 @@ export default function PdfReader({ book, onClose }: PdfReaderProps) {
         <button
           onClick={handleZoomOut}
           disabled={isLoading || scale <= 0.5}
-          className="p-2 hover:bg-surface-high disabled:text-on-surface-variant disabled:opacity-50 transition-colors text-on-surface rounded"
+          className="p-2 hover:bg-surface-high disabled:text-ink-muted disabled:opacity-50 transition-colors text-ink rounded"
           title="Zoom out"
         >
           <ZoomOut size={18} />
@@ -134,7 +134,7 @@ export default function PdfReader({ book, onClose }: PdfReaderProps) {
         <button
           onClick={handlePrevious}
           disabled={isLoading || currentPage <= 1}
-          className="p-2 hover:bg-surface-high disabled:text-on-surface-variant disabled:opacity-50 transition-colors text-on-surface rounded"
+          className="p-2 hover:bg-surface-high disabled:text-ink-muted disabled:opacity-50 transition-colors text-ink rounded"
           title="Previous page"
         >
           <ChevronLeft size={20} />
@@ -147,15 +147,15 @@ export default function PdfReader({ book, onClose }: PdfReaderProps) {
             max={totalPages}
             value={currentPage}
             onChange={e => setCurrentPage(Math.max(1, Math.min(totalPages, parseInt(e.target.value) || 1)))}
-            className="w-12 px-2 py-1 text-xs rounded bg-surface-high border border-line text-on-surface text-center"
+            className="w-12 px-2 py-1 text-xs rounded bg-surface-high border border-line text-ink text-center"
           />
-          <span className="text-xs text-on-surface-variant">/ {totalPages}</span>
+          <span className="text-xs text-ink-muted">/ {totalPages}</span>
         </div>
 
         <button
           onClick={handleNext}
           disabled={isLoading || currentPage >= totalPages}
-          className="p-2 hover:bg-surface-high disabled:text-on-surface-variant disabled:opacity-50 transition-colors text-on-surface rounded"
+          className="p-2 hover:bg-surface-high disabled:text-ink-muted disabled:opacity-50 transition-colors text-ink rounded"
           title="Next page"
         >
           <ChevronRight size={20} />
@@ -164,7 +164,7 @@ export default function PdfReader({ book, onClose }: PdfReaderProps) {
         <button
           onClick={handleZoomIn}
           disabled={isLoading || scale >= 3}
-          className="p-2 hover:bg-surface-high disabled:text-on-surface-variant disabled:opacity-50 transition-colors text-on-surface rounded"
+          className="p-2 hover:bg-surface-high disabled:text-ink-muted disabled:opacity-50 transition-colors text-ink rounded"
           title="Zoom in"
         >
           <ZoomIn size={18} />

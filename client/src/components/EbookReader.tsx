@@ -24,10 +24,10 @@ export default function EbookReader({ book, onClose }: EbookReaderProps) {
   return (
     <div className="flex items-center justify-center h-96 bg-surface-card border border-line rounded-lg">
       <div className="text-center">
-        <p className="text-sm font-medium text-on-surface mb-2">
+        <p className="text-sm font-medium text-ink mb-2">
           Unsupported format: {format?.toUpperCase() || 'Unknown'}
         </p>
-        <p className="text-xs text-on-surface-variant">
+        <p className="text-xs text-ink-muted">
           Supported formats: EPUB, PDF
         </p>
       </div>
