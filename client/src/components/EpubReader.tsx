@@ -18,6 +18,9 @@ export default function EpubReader({ book, onClose }: EpubReaderProps) {
   const [showSettings, setShowSettings] = useState(false)
 
   useEffect(() => {
+    let isMounted = true;
+    const observers: MutationObserver[] = [];
+    
     const loadEpub = async () => {
       if (!viewerRef.current) {
         console.warn('Viewer ref not available')
@@ -25,40 +28,28 @@ export default function EpubReader({ book, onClose }: EpubReaderProps) {
       }
 
       try {
-        console.log('Starting EPUB load for book:', book.id, book.filename)
         const url = `/api/books/${book.id}/download`
-        console.log('EPUB URL:', url)
         
-        console.log('Fetching EPUB file as blob...')
         const response = await fetch(url)
         if (!response.ok) {
           throw new Error(`Failed to fetch EPUB: ${response.status} ${response.statusText}`)
         }
         const blob = await response.blob()
-        console.log('EPUB blob received, size:', blob.size)
         
-        // Convert blob to ArrayBuffer for EPub.js
-        console.log('Converting blob to ArrayBuffer...')
         const arrayBuffer = await blob.arrayBuffer()
-        console.log('ArrayBuffer ready, length:', arrayBuffer.byteLength)
         
         const newBook = EPub(arrayBuffer)
         bookObjRef.current = newBook
 
-        console.log('Waiting for book.ready...')
         const readyPromise = newBook.ready
         const timeoutPromise = new Promise((_, reject) =>
           setTimeout(() => reject(new Error('EPUB ready timeout (10s)')), 10000)
         )
-        
         await Promise.race([readyPromise, timeoutPromise])
-        console.log('Book ready!')
 
-        // Get the actual dimensions from the container
         const rect = viewerRef.current.getBoundingClientRect()
         const width = Math.max(rect.width, 400)
         const height = Math.max(rect.height, 600)
-        console.log(`Rendering to dimensions: ${width}x${height}`)
 
         const newRendition = newBook.renderTo(viewerRef.current, {
           width: width,
@@ -67,13 +58,26 @@ export default function EpubReader({ book, onClose }: EpubReaderProps) {
           spread: 'reflect'
         })
 
-        console.log('Calling rendition.display()...')
-        await newRendition.display()
-        console.log('Rendition displayed!')
+        const updateTheme = () => {
+          if (!newRendition.themes) return;
+          const isLight = document.documentElement.dataset.theme === 'light';
+          const textColor = isLight ? '#1a1a2e' : '#eeeef8';
+          newRendition.themes.override('color', textColor, true);
+          newRendition.themes.override('background', 'transparent', true);
+        };
         
+        newRendition.hooks.content.register(() => {
+          updateTheme();
+        });
+
+        await newRendition.display()
         renditionRef.current = newRendition
 
-        // Handle location changes
+        updateTheme();
+        const themeObserver = new MutationObserver(() => updateTheme());
+        themeObserver.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+        observers.push(themeObserver);
+
         const onRelocated = (location: any) => {
           if (newBook.locations && typeof newBook.locations.percentageFromCfi === 'function') {
             const percentage = Math.round(
@@ -84,33 +88,30 @@ export default function EpubReader({ book, onClose }: EpubReaderProps) {
         }
         newRendition.on('relocated', onRelocated)
 
-        setIsLoading(false)
-        console.log('EPUB loaded successfully')
+        if (isMounted) setIsLoading(false)
       } catch (error) {
-        const errorMsg = error instanceof Error ? error.message : String(error)
-        console.error('Failed to load EPUB:', errorMsg, error)
-        console.error('Book ID:', book.id)
-        console.error('Book filename:', book.filename)
-        console.error('Full error object:', error)
-        setIsLoading(false)
+        console.error('Failed to load EPUB:', error)
+        if (isMounted) setIsLoading(false)
       }
     }
 
     loadEpub()
 
     return () => {
+      isMounted = false;
+      observers.forEach(obs => obs.disconnect());
       if (renditionRef.current) {
         try {
-          renditionRef.current.destroy?.()
+          renditionRef.current.destroy?.();
         } catch (e) {
-          console.debug('Error destroying rendition:', e)
+          console.debug('Error destroying rendition:', e);
         }
       }
       if (bookObjRef.current) {
         try {
-          bookObjRef.current.destroy?.()
+          bookObjRef.current.destroy?.();
         } catch (e) {
-          console.debug('Error destroying book:', e)
+          console.debug('Error destroying book:', e);
         }
       }
     }

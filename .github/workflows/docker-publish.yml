@@ -14,7 +14,7 @@ on:
       push_image:
         description: 'Push image to registry'
         required: false
-        default: 'false'
+        default: false
         type: boolean
 
 env:
@@ -98,6 +98,7 @@ jobs:
             org.opencontainers.image.title=bookie
             org.opencontainers.image.description=Self-hosted ebook manager
             org.opencontainers.image.vendor=${{ github.repository_owner }}
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
 
       - name: Get build date
         id: build_date
