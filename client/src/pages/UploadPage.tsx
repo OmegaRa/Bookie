@@ -18,7 +18,7 @@ interface Props {
   onClose: () => void
 }
 
-const ALLOWED = new Set(['epub', 'pdf', 'mobi', 'azw', 'azw3', 'fb2', 'djvu', 'cbz', 'cbr', 'txt'])
+const ALLOWED = new Set(['epub', 'pdf', 'mobi', 'azw', 'azw3', 'fb2', 'djvu', 'cbz', 'cbr', 'txt', 'mp3', 'm4b', 'm4a', 'aac', 'flac', 'ogg', 'wma', 'opus'])
 
 function ext(name: string) {
   return name.split('.').pop()?.toLowerCase() ?? ''
@@ -144,7 +144,7 @@ export default function UploadPage({ onClose }: Props) {
           <Upload className={`w-8 h-8 ${dragging ? 'text-accent' : 'text-ink-muted'}`} />
           <div className="text-center">
             <p className="text-sm font-medium text-ink">Drop files or folders here</p>
-            <p className="text-xs text-ink-muted mt-1">EPUB, PDF, MOBI, AZW3, FB2, DJVU, CBZ, CBR, TXT · max 128 MB</p>
+            <p className="text-xs text-ink-muted mt-1">EPUB, PDF, MOBI, AZW3, FB2, DJVU, CBZ, CBR, TXT, Audiobooks · max 128 MB</p>
           </div>
           <button
             type="button"

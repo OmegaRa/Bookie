@@ -17,6 +17,14 @@ const FORMAT_OPTIONS = [
   { value: 'cbz', label: 'CBZ' },
   { value: 'cbr', label: 'CBR' },
   { value: 'txt', label: 'TXT' },
+  { value: 'mp3', label: 'MP3' },
+  { value: 'm4b', label: 'M4B' },
+  { value: 'm4a', label: 'M4A' },
+  { value: 'aac', label: 'AAC' },
+  { value: 'flac', label: 'FLAC' },
+  { value: 'ogg', label: 'OGG' },
+  { value: 'wma', label: 'WMA' },
+  { value: 'opus', label: 'OPUS' },
 ]
 
 const SORT_OPTIONS = [

@@ -335,8 +335,8 @@ def _check_for_update() -> dict:
         _update_check_cache = (now, result)
         return result
 
-    ghcr_image = os.environ.get("GHCR_IMAGE", "ghcr.io/sweatyeggs69/bookie").strip()
-    # Expect format: registry/owner/image  (e.g. ghcr.io/sweatyeggs69/bookie)
+    ghcr_image = os.environ.get("GHCR_IMAGE", "ghcr.io/OmegaRa/bookie").strip()
+    # Expect format: registry/owner/image  (e.g. ghcr.io/OmegaRa/bookie)
     slash_idx = ghcr_image.find("/")
     if slash_idx == -1:
         result = {"update_available": False, "reason": "invalid_image"}

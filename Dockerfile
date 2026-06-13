@@ -70,7 +70,7 @@ COPY --from=frontend-builder /app/static/dist ./static/dist
 RUN mkdir -p data/books data/covers
 
 ARG BUILD_DATE=""
-ARG GHCR_IMAGE="ghcr.io/sweatyeggs69/bookie"
+ARG GHCR_IMAGE="ghcr.io/OmegaRa/bookie"
 
 ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
