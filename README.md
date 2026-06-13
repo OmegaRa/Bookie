@@ -36,7 +36,7 @@ I have added the ability to host audiobooks, and the ability to listen to audiob
 services:
   bookie:
     container_name: bookie
-    image: ghcr.io/sweatyeggs69/bookie:latest
+    image: ghcr.io/OmegaRa/bookie:latest
     ports:
       - "5000:5000"
     volumes:
@@ -48,7 +48,7 @@ services:
 
 Access the UI at http://localhost:5000
 
-## Companion Apps (Unoffical)
+## Companion Apps
 - Bookie Reader https://github.com/OmegaRa/Bookie-Reader
 
 ## License
