@@ -41,6 +41,22 @@ HEADERS = {
 
 
 # ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
+
+def _clean_list_to_str(val, limit=None) -> str:
+    """Safely format lists or single values into a clean comma-separated string."""
+    if not val:
+        return ""
+    if isinstance(val, list):
+        items = [str(x).strip() for x in val if x]
+        if limit:
+            items = items[:limit]
+        return ", ".join(items)
+    return str(val).strip()
+
+
+# ---------------------------------------------------------------------------
 # Open Library
 # ---------------------------------------------------------------------------
 
@@ -56,7 +72,13 @@ def search_open_library(query: str, max_results: int = 10) -> list[dict]:
         r = requests.get(url, params=params, timeout=15)
         r.raise_for_status()
         data = r.json()
-        return [_parse_ol_doc(doc) for doc in data.get("docs", [])]
+        results = []
+        for doc in data.get("docs", []):
+            try:
+                results.append(_parse_ol_doc(doc))
+            except Exception as e:
+                logger.warning("Failed to parse Open Library doc: %s", e)
+        return results
     except Exception as exc:
         logger.warning("Open Library search failed: %s", exc)
         return []
@@ -70,18 +92,27 @@ def fetch_open_library_by_isbn(isbn: str) -> dict | None:
 def _parse_ol_doc(doc: dict) -> dict:
     cover_id = doc.get("cover_i")
     cover_url = f"https://covers.openlibrary.org/b/id/{cover_id}-L.jpg" if cover_id else None
-    isbns = doc.get("isbn", [])
-    isbn10 = next((i for i in isbns if len(i) == 10), None)
-    isbn13 = next((i for i in isbns if len(i) == 13), None)
+    
+    isbns = doc.get("isbn") or []
+    if isinstance(isbns, list):
+        isbn10 = next((str(i).strip() for i in isbns if i and len(str(i).strip()) == 10), None)
+        isbn13 = next((str(i).strip() for i in isbns if i and len(str(i).strip()) == 13), None)
+    elif isbns:
+        isbn_str = str(isbns).strip()
+        isbn10 = isbn_str if len(isbn_str) == 10 else None
+        isbn13 = isbn_str if len(isbn_str) == 13 else None
+    else:
+        isbn10 = isbn13 = None
+
     return {
         "source": "open_library",
         "title": doc.get("title"),
-        "author": ", ".join(doc.get("author_name", [])),
-        "publisher": ", ".join(doc.get("publisher", [])[:2]),
-        "published_date": str(doc.get("first_publish_year", "")),
+        "author": _clean_list_to_str(doc.get("author_name")),
+        "publisher": _clean_list_to_str(doc.get("publisher"), limit=2),
+        "published_date": str(doc.get("first_publish_year") or ""),
         "page_count": doc.get("number_of_pages_median"),
-        "categories": ", ".join((doc.get("subject") or [])[:5]),
-        "language": ", ".join(doc.get("language", [])),
+        "categories": _clean_list_to_str(doc.get("subject"), limit=5),
+        "language": _clean_list_to_str(doc.get("language")),
         "isbn": isbn10,
         "isbn13": isbn13,
         "rating": doc.get("ratings_average"),
