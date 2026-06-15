@@ -1,6 +1,6 @@
 {
-  "name": "Bookie",
-  "short_name": "Bookie",
+  "name": "Bookie+",
+  "short_name": "Bookie+",
   "description": "Personal ebook library",
   "start_url": "/",
   "display": "standalone",

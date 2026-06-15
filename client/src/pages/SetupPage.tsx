@@ -57,7 +57,7 @@ export default function SetupPage({ onSuccess }: Props) {
           <div className="w-14 h-14 rounded-2xl bg-accent/20 flex items-center justify-center mb-4">
             <BookOpen className="w-7 h-7 text-accent" />
           </div>
-          <h1 className="text-2xl font-semibold text-ink tracking-tight">Bookie</h1>
+          <h1 className="text-2xl font-semibold text-ink tracking-tight">Bookie+</h1>
           <p className="text-ink-muted text-sm mt-1">Create your admin account to get started</p>
         </div>
 

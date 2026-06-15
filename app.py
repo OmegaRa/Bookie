@@ -1,4 +1,4 @@
-"""Bookie – Docker ebook manager with Material Design 3 UI."""
+"""Bookie+ – Docker ebook manager with Material Design 3 UI."""
 import io
 import json
 import math

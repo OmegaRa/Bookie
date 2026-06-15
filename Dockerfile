@@ -40,7 +40,7 @@ RUN pip install --no-cache-dir --prefix=/install -r requirements.txt
 # ── Stage 3: Runtime ───────────────────────────────────────
 FROM python:3.12-slim
 
-LABEL org.opencontainers.image.title="Bookie"
+LABEL org.opencontainers.image.title="Bookie+"
 LABEL org.opencontainers.image.description="Self-hosted ebook manager"
 LABEL org.opencontainers.image.licenses="MIT"
 

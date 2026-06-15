@@ -1,5 +1,5 @@
 /* =========================================================
-   Bookie Service Worker
+   Bookie+ Service Worker
    - Cache-first for static assets (CSS, JS, fonts, icons)
    - Network-first for API calls and HTML pages
    ========================================================= */
@@ -105,7 +105,7 @@ async function networkFirst(request, cacheName, timeoutMs = 6000) {
     const shell = await caches.match('/');
     if (shell) return shell;
     return new Response(
-      '<h1 style="font-family:sans-serif;padding:2rem">Bookie is offline</h1>',
+      '<h1 style="font-family:sans-serif;padding:2rem">Bookie+ is offline</h1>',
       { status: 503, headers: { 'Content-Type': 'text/html' } }
     );
   }

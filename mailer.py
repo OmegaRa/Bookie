@@ -35,10 +35,10 @@ def send_book(
 
     sender = sender_email or smtp_user
     subject = subject or f"Book: {path.name}"
-    body = body or "Book attached. Sent via Bookie."
+    body = body or "Book attached. Sent via Bookie+."
 
     msg = MIMEMultipart()
-    msg["From"] = formataddr(("Bookie", sender))
+    msg["From"] = formataddr(("Bookie+", sender))
     msg["To"] = recipient
     msg["Subject"] = subject
     msg.attach(MIMEText(body, "plain"))
@@ -90,10 +90,10 @@ def send_test_email(
     """Send a test email to verify SMTP configuration."""
     sender = sender_email or smtp_user
     msg = MIMEMultipart()
-    msg["From"] = formataddr(("Bookie", sender))
+    msg["From"] = formataddr(("Bookie+", sender))
     msg["To"] = recipient
-    msg["Subject"] = "Bookie – SMTP Test Email"
-    msg.attach(MIMEText("This is a test email sent from Bookie to verify your SMTP configuration.", "plain"))
+    msg["Subject"] = "Bookie+ – SMTP Test Email"
+    msg.attach(MIMEText("This is a test email sent from Bookie+ to verify your SMTP configuration.", "plain"))
     try:
         if use_tls:
             server = smtplib.SMTP(smtp_host, smtp_port, timeout=30)

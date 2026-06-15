@@ -103,7 +103,7 @@ export default function TopBar({ onAuthChange }: Props) {
         className="flex items-center gap-2 shrink-0 text-ink hover:text-accent transition-colors"
       >
         <BookOpen className="w-5 h-5 text-accent" />
-        <span className="font-semibold text-base tracking-tight">Bookie</span>
+        <span className="font-semibold text-base tracking-tight">Bookie+</span>
       </button>
 
       {/* Desktop search — absolutely centered in header */}
