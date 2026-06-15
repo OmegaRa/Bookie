@@ -50,15 +50,20 @@ I have added the ability to host audiobooks, and the ability to listen to audiob
 
 ```yaml
 services:
-  bookie:
-    container_name: bookie
+  bookie-plus:
+    container_name: bookie-plus
     image: ghcr.io/OmegaRa/bookie-plus:latest
     ports:
       - "5000:5000"
     volumes:
+      # Main configuration, database, keys, and covers
       - /path/to/config:/app/data
+      # Maps your host's ebook folder
+      - /path/to/your/ebooks:/app/data/books
+      # Maps your host's audiobook folder
+      - /path/to/your/audiobooks:/app/data/audiobooks
     environment:
-      - SESSION_COOKIE_SECURE=false  # Required when accessing over HTTP
+      - SESSION_COOKIE_SECURE=false
     restart: unless-stopped
 ```
 
