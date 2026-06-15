@@ -13,6 +13,12 @@ class Tag(db.Model):
 
     book_tags = db.relationship("BookTag", back_populates="tag", cascade="all, delete-orphan")
 
+    def __init__(self, name=None, **kwargs):
+        super().__init__()
+        self.name = name
+        for k, v in kwargs.items():
+            setattr(self, k, v)
+
     def to_dict(self):
         return {
             "id": self.id,
@@ -32,6 +38,13 @@ class BookTag(db.Model):
 
     book = db.relationship("Book", back_populates="book_tags")
     tag = db.relationship("Tag", back_populates="book_tags")
+
+    def __init__(self, book_id=None, tag_id=None, **kwargs):
+        super().__init__()
+        self.book_id = book_id
+        self.tag_id = tag_id
+        for k, v in kwargs.items():
+            setattr(self, k, v)
 
     __table_args__ = (
         db.UniqueConstraint("book_id", "tag_id"),
@@ -141,6 +154,14 @@ class EmailAddress(db.Model):
     is_default = db.Column(db.Boolean, default=False, nullable=False)
     date_added = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
 
+    def __init__(self, label=None, email=None, is_default=False, **kwargs):
+        super().__init__()
+        self.label = label
+        self.email = email
+        self.is_default = is_default
+        for k, v in kwargs.items():
+            setattr(self, k, v)
+
     def to_dict(self):
         return {
             "id": self.id,
@@ -156,6 +177,13 @@ class Settings(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     key = db.Column(db.String(128), nullable=False, unique=True)
     value = db.Column(db.Text)
+
+    def __init__(self, key=None, value=None, **kwargs):
+        super().__init__()
+        self.key = key
+        self.value = value
+        for k, v in kwargs.items():
+            setattr(self, k, v)
 
     _cache: dict = {}
     _cache_ttl: float = 30.0  # seconds
