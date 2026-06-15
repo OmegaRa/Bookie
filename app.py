@@ -336,12 +336,62 @@ logging.getLogger().addHandler(_log_buffer)
 # ---------------------------------------------------------------------------
 
 BOOKS_DIR = DATA_DIR / "books"
+AUDIOBOOKS_DIR = DATA_DIR / "audiobooks"
 COVERS_DIR = DATA_DIR / "covers"
 ALLOWED_EXTENSIONS = {"epub", "pdf", "mobi", "azw", "azw3", "fb2", "djvu", "cbz", "cbr", "txt",
                       "mp3", "m4b", "m4a", "aac", "flac", "ogg", "wma", "opus"}
 AUDIOBOOK_EXTENSIONS = {"mp3", "m4b", "m4a", "aac", "flac", "ogg", "wma", "opus"}
 MAX_UPLOAD_MB = 128
 MAX_AUDIOBOOK_MB = 500  # Larger limit for audiobooks
+
+
+def get_book_dir(book) -> Path:
+    """Return the base directory (target or fallback) for a book."""
+    target_dir = AUDIOBOOKS_DIR if book.is_audiobook else BOOKS_DIR
+    if (target_dir / book.filename).exists():
+        return target_dir
+    fallback_dir = BOOKS_DIR if book.is_audiobook else AUDIOBOOKS_DIR
+    if (fallback_dir / book.filename).exists():
+        return fallback_dir
+    return target_dir
+
+
+def get_book_path(book) -> Path:
+    """Return the absolute path of a book, handling fallback for old paths."""
+    target_dir = AUDIOBOOKS_DIR if book.is_audiobook else BOOKS_DIR
+    target_path = target_dir / book.filename
+    if target_path.exists():
+        return target_path
+    fallback_dir = BOOKS_DIR if book.is_audiobook else AUDIOBOOKS_DIR
+    fallback_path = fallback_dir / book.filename
+    if fallback_path.exists():
+        return fallback_path
+    return target_path
+
+
+def _ensure_correct_base_dir(book, current_path: Path) -> tuple[Path, Path]:
+    """Ensure the book file is in its correct target base directory. Returns (new_current_path, base_dir)."""
+    target_dir = AUDIOBOOKS_DIR if book.is_audiobook else BOOKS_DIR
+    if not current_path.exists():
+        return current_path, target_dir
+    try:
+        current_path.resolve().relative_to(target_dir.resolve())
+        return current_path, target_dir
+    except ValueError:
+        # Move it to the target directory structure
+        dest = target_dir / current_path.name
+        counter = 1
+        while dest.exists():
+            dest = target_dir / f"{current_path.stem}_{counter}{current_path.suffix}"
+            counter += 1
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        current_path.rename(dest)
+        book.filename = dest.name
+        _cleanup_empty_dirs(current_path.parent)
+        from models import db as _db
+        _db.session.commit()
+        return dest, target_dir
+
 
 # Magic-byte signatures for formats where we can reliably verify content.
 # Extensions not listed here are accepted on extension alone (txt, fb2, mobi, etc.
@@ -388,10 +438,10 @@ def _safe_int(value, default: int) -> int:
 
 
 def _cleanup_empty_dirs(directory: Path) -> None:
-    """Remove *directory* and its parent if both are empty and not BOOKS_DIR."""
+    """Remove *directory* and its parent if both are empty and not BOOKS_DIR/AUDIOBOOKS_DIR."""
     try:
         for folder in [directory, directory.parent]:
-            if folder != BOOKS_DIR and folder.exists() and not any(folder.iterdir()):
+            if folder not in (BOOKS_DIR, AUDIOBOOKS_DIR) and folder.exists() and not any(folder.iterdir()):
                 folder.rmdir()
     except Exception as exc:
         logger.debug("Could not remove empty directory %s: %s", directory, exc)
@@ -518,6 +568,7 @@ def create_app():
 
     with app.app_context():
         BOOKS_DIR.mkdir(parents=True, exist_ok=True)
+        AUDIOBOOKS_DIR.mkdir(parents=True, exist_ok=True)
         COVERS_DIR.mkdir(parents=True, exist_ok=True)
         db.create_all()
         _migrate_db(app)
@@ -677,11 +728,12 @@ def create_app():
     @app.route("/api/books/scan", methods=["POST"])
     @login_required
     def scan_books():
-        """Walk BOOKS_DIR, register new files, and remove DB entries for deleted files."""
+        """Walk BOOKS_DIR (for ebooks) and AUDIOBOOKS_DIR (for audiobooks), register new files, and remove DB entries for deleted files."""
         # ── Remove stale records (file deleted from disk) ──────────────────
         removed = 0
         for book in Book.query.all():
-            if not (BOOKS_DIR / book.filename).exists():
+            path = get_book_path(book)
+            if not path.exists():
                 cover_mgr.delete_cover(book.id)
                 db.session.delete(book)
                 removed += 1
@@ -691,64 +743,82 @@ def create_app():
         known = {b.filename for b in Book.query.with_entities(Book.filename).all()}
         auto_meta = Settings.get("auto_metadata", "false") == "true"
         added = 0
-        for path in BOOKS_DIR.rglob("*"):
-            if not path.is_file():
+
+        # Scan targets: (directory, is_audio_only)
+        scan_targets = [
+            (BOOKS_DIR, False),
+            (AUDIOBOOKS_DIR, True)
+        ]
+
+        for scan_dir, is_audio_only in scan_targets:
+            if not scan_dir.exists():
                 continue
-            ext = path.suffix.lstrip(".").lower()
-            if ext not in ALLOWED_EXTENSIONS:
-                continue
-            rel = str(path.relative_to(BOOKS_DIR))
-            if rel in known:
-                continue
+            for path in scan_dir.rglob("*"):
+                if not path.is_file():
+                    continue
+                ext = path.suffix.lstrip(".").lower()
+                if ext not in ALLOWED_EXTENSIONS:
+                    continue
+                
+                is_audio = ext in AUDIOBOOK_EXTENSIONS
+                if is_audio_only != is_audio:
+                    continue
 
-            is_audio = ext in AUDIOBOOK_EXTENSIONS
-            book = Book(
-                filename=rel,
-                file_format=ext,
-                file_size=path.stat().st_size,
-                title=path.stem,
-                is_audiobook=is_audio,
-                audio_format=ext if is_audio else None,
-            )
-            db.session.add(book)
-            db.session.flush()
+                rel = str(path.relative_to(scan_dir))
+                if rel in known:
+                    continue
 
-            # Extract embedded cover
-            cover_data = None
-            if ext == "epub":
-                cover_data = cover_mgr.extract_cover_from_epub(str(path))
-            elif ext == "pdf":
-                cover_data = cover_mgr.extract_cover_from_pdf(str(path))
-            elif is_audio:
-                cover_data = cover_mgr.extract_cover_from_audio(str(path))
-            if cover_data:
-                cf = cover_mgr.save_cover(book.id, cover_data)
-                if cf:
-                    book.cover_filename = cf
-
-            # Extract and apply embedded metadata (title, author, ISBN, …)
-            embedded = extract_embedded_metadata(path, ext)
-            if any(embedded.values()):
-                _apply_metadata(book, embedded, replace_missing_only=False)
-
-            # Auto-fetch from online sources if the setting is on
-            if auto_meta:
                 try:
-                    _auto_fetch_metadata(book)
-                except Exception as exc:
-                    logger.warning("Auto-fetch failed for scanned book %s: %s", rel, exc)
+                    book = Book(
+                        filename=rel,
+                        file_format=ext,
+                        file_size=path.stat().st_size,
+                        title=path.stem,
+                        is_audiobook=is_audio,
+                        audio_format=ext if is_audio else None,
+                    )
+                    db.session.add(book)
+                    db.session.flush()
 
-            # Apply rename/organize scheme
-            try:
-                _rename_and_organize(book, path)
-            except Exception as exc:
-                logger.warning("Rename failed for scanned book %s: %s", rel, exc)
+                    # Extract embedded cover
+                    cover_data = None
+                    if ext == "epub":
+                        cover_data = cover_mgr.extract_cover_from_epub(str(path))
+                    elif ext == "pdf":
+                        cover_data = cover_mgr.extract_cover_from_pdf(str(path))
+                    elif is_audio:
+                        cover_data = cover_mgr.extract_cover_from_audio(str(path))
+                    if cover_data:
+                        cf = cover_mgr.save_cover(book.id, cover_data)
+                        if cf:
+                            book.cover_filename = cf
 
-            added += 1
-            known.add(book.filename)  # use updated filename after rename
+                    # Extract and apply embedded metadata (title, author, ISBN, …)
+                    embedded = extract_embedded_metadata(path, ext)
+                    if any(embedded.values()):
+                        _apply_metadata(book, embedded, replace_missing_only=False)
+
+                    # Auto-fetch from online sources if the setting is on
+                    if auto_meta:
+                        try:
+                            _auto_fetch_metadata(book)
+                        except Exception as exc:
+                            logger.warning("Auto-fetch failed for scanned book %s: %s", rel, exc)
+
+                    # Apply rename/organize scheme
+                    try:
+                        _rename_and_organize(book, path)
+                    except Exception as exc:
+                        logger.warning("Rename failed for scanned book %s: %s", rel, exc)
+
+                    added += 1
+                    known.add(book.filename)  # use updated filename after rename
+                except Exception as e:
+                    logger.exception("Error registering scanned book %s", path)
 
         db.session.commit()
         return jsonify({"added": added, "removed": removed})
+
 
     @app.route("/api/books/upload", methods=["POST"])
     @login_required
@@ -766,18 +836,19 @@ def create_app():
             return jsonify({"error": f"File content does not match declared format (.{ext})"}), 400
 
         filename = secure_filename(file.filename)
-        dest = BOOKS_DIR / filename
+        is_audio = ext in AUDIOBOOK_EXTENSIONS
+        dest_dir = AUDIOBOOKS_DIR if is_audio else BOOKS_DIR
+        dest = dest_dir / filename
         counter = 1
         stem = Path(filename).stem
         while dest.exists():
             filename = f"{stem}_{counter}.{ext}"
-            dest = BOOKS_DIR / filename
+            dest = dest_dir / filename
             counter += 1
 
         file.save(str(dest))
         size = dest.stat().st_size
 
-        is_audio = ext in AUDIOBOOK_EXTENSIONS
         book = Book(
             filename=filename,
             file_format=ext,
@@ -849,7 +920,7 @@ def create_app():
             setattr(book, f, val)
         db.session.commit()
         # Re-apply rename/organize after metadata update
-        file_path = BOOKS_DIR / book.filename
+        file_path = get_book_path(book)
         if file_path.exists():
             try:
                 _rename_and_organize(book, file_path)
@@ -861,7 +932,7 @@ def create_app():
     @login_required
     def delete_book(book_id):
         book = Book.query.get_or_404(book_id)
-        filepath = BOOKS_DIR / book.filename
+        filepath = get_book_path(book)
         parent = filepath.parent
         if filepath.exists():
             filepath.unlink()
@@ -919,7 +990,7 @@ def create_app():
             book = Book.query.get(book_id)
             if not book:
                 continue
-            filepath = BOOKS_DIR / book.filename
+            filepath = get_book_path(book)
             parent = filepath.parent
             if filepath.exists():
                 filepath.unlink()
@@ -975,8 +1046,9 @@ def create_app():
     @login_required
     def download_book(book_id):
         book = Book.query.get_or_404(book_id)
-        filepath = (BOOKS_DIR / book.filename).resolve()
-        if not filepath.is_relative_to(BOOKS_DIR.resolve()):
+        base_dir = get_book_dir(book)
+        filepath = get_book_path(book).resolve()
+        if not filepath.is_relative_to(base_dir.resolve()):
             abort(400)
         if not filepath.exists():
             abort(404)
@@ -989,8 +1061,9 @@ def create_app():
         book = Book.query.get_or_404(book_id)
         if not book.is_audiobook:
             abort(404)
-        filepath = (BOOKS_DIR / book.filename).resolve()
-        if not filepath.is_relative_to(BOOKS_DIR.resolve()):
+        base_dir = get_book_dir(book)
+        filepath = get_book_path(book).resolve()
+        if not filepath.is_relative_to(base_dir.resolve()):
             abort(400)
         if not filepath.exists():
             abort(404)
@@ -1062,10 +1135,11 @@ def create_app():
             "isbn13": book.isbn13,
             "language": book.language,
         }
-        src = BOOKS_DIR / book.filename
+        src = get_book_path(book)
         if not src.exists():
             return jsonify({"error": "File not found on disk"}), 404
-        new_path, new_name = renamer.rename_book_file(src, BOOKS_DIR, scheme, meta, custom_tpl)
+        base_dir = get_book_dir(book)
+        new_path, new_name = renamer.rename_book_file(src, base_dir, scheme, meta, custom_tpl)
         book.filename = new_name
         db.session.commit()
         return jsonify({"success": True, "new_filename": new_name})
@@ -1120,7 +1194,7 @@ def create_app():
         results = []
         errors = []
         for book in books:
-            src = BOOKS_DIR / book.filename
+            src = get_book_path(book)
             if not src.exists():
                 errors.append({"id": book.id, "original": book.filename, "error": "File not found"})
                 continue
@@ -1143,7 +1217,17 @@ def create_app():
                     new_filename_with_folder = f"{author_safe}/{new_filename}"
             else:
                 new_filename_with_folder = new_filename
-            changed = new_filename_with_folder != book.filename
+
+            # Check if currently in the correct base directory
+            target_dir = AUDIOBOOKS_DIR if book.is_audiobook else BOOKS_DIR
+            is_in_correct_dir = False
+            try:
+                src.resolve().relative_to(target_dir.resolve())
+                is_in_correct_dir = True
+            except ValueError:
+                pass
+
+            changed = (new_filename_with_folder != book.filename) or not is_in_correct_dir
             if not changed:
                 results.append({"id": book.id, "original": book.filename, "new": new_filename_with_folder, "changed": False})
                 continue
@@ -1151,17 +1235,21 @@ def create_app():
                 try:
                     original_filename = book.filename
                     old_parent = src.parent
-                    current = src
+                    
+                    # Ensure book is moved to correct base directory first
+                    current, base_dir = _ensure_correct_base_dir(book, src)
+                    
                     if scheme != "original":
-                        current, new_rel = renamer.rename_book_file(current, BOOKS_DIR, scheme, meta, custom_tpl)
+                        current, new_rel = renamer.rename_book_file(current, base_dir, scheme, meta, custom_tpl)
                         book.filename = new_rel
                     if folder_mode != "flat":
                         current, new_rel = renamer.organize_into_folders(
-                            current, BOOKS_DIR, book.author,
+                            current, base_dir, book.author,
                             getattr(book, "series", None), folder_mode
                         )
                         book.filename = new_rel
                     _cleanup_empty_dirs(old_parent)
+                    _cleanup_empty_dirs(current.parent)
                     results.append({"id": book.id, "original": original_filename, "new": book.filename, "changed": True})
                 except Exception as e:
                     errors.append({"id": book.id, "original": book.filename, "error": str(e)})
@@ -1199,7 +1287,7 @@ def create_app():
         # Explicit user selection always replaces all fields
         _apply_metadata(book, meta, replace_missing_only=False)
         # Re-apply rename/organize after metadata import
-        file_path = BOOKS_DIR / book.filename
+        file_path = get_book_path(book)
         if file_path.exists():
             try:
                 _rename_and_organize(book, file_path)
@@ -1289,7 +1377,7 @@ def create_app():
 
         # Auto-embed cover in EPUB
         if book.file_format == "epub":
-            epub_path = str(BOOKS_DIR / book.filename)
+            epub_path = str(get_book_path(book))
             cover_path = cover_mgr.get_cover_path(book_id)
             if cover_path:
                 with open(str(cover_path), "rb") as fh:
@@ -1309,7 +1397,7 @@ def create_app():
             return jsonify({"error": "No cover image found"}), 404
         with open(str(path), "rb") as f:
             data = f.read()
-        success = cover_mgr.embed_cover_in_epub(str(BOOKS_DIR / book.filename), data)
+        success = cover_mgr.embed_cover_in_epub(str(get_book_path(book)), data)
         if success:
             return jsonify({"success": True})
         return jsonify({"error": "Failed to embed cover"}), 500
@@ -1502,7 +1590,7 @@ def create_app():
         if not smtp_host or not smtp_user or not smtp_password:
             return jsonify({"error": "SMTP settings incomplete. Configure in Settings first."}), 400
 
-        filepath = str(BOOKS_DIR / book.filename)
+        filepath = str(get_book_path(book))
         ok, msg = mailer.send_book(
             filepath=filepath,
             recipient=recipient,
@@ -1609,12 +1697,16 @@ def create_app():
     def organize_book(book_id):
         """Move a book file into Author/ or Author/Series/ subfolder."""
         book = Book.query.get_or_404(book_id)
-        src = BOOKS_DIR / book.filename
+        src = get_book_path(book)
         if not src.exists():
             return jsonify({"error": "File not found on disk"}), 404
+        
+        # Ensure correct base directory first (self-healing migration)
+        current, base_dir = _ensure_correct_base_dir(book, src)
+        
         folder_mode = Settings.get("folder_organization", "flat")
         new_path, new_rel = renamer.organize_into_folders(
-            src, BOOKS_DIR, book.author, book.series, folder_mode
+            current, base_dir, book.author, book.series, folder_mode
         )
         book.filename = new_rel
         db.session.commit()
@@ -1699,22 +1791,29 @@ def _rename_and_organize(book, file_path: Path):
     }
 
     old_parent = file_path.parent
-    current = file_path
+    
+    # Ensure correct base directory first (self-healing migration)
+    current, base_dir = _ensure_correct_base_dir(book, file_path)
+    
     if scheme != "original":
-        current, new_rel = renamer.rename_book_file(current, BOOKS_DIR, scheme, meta, custom_tpl)
+        current, new_rel = renamer.rename_book_file(current, base_dir, scheme, meta, custom_tpl)
         book.filename = new_rel
 
     if folder_mode != "flat":
         current, new_rel = renamer.organize_into_folders(
-            current, BOOKS_DIR, book.author, getattr(book, "series", None), folder_mode
+            current, base_dir, book.author, getattr(book, "series", None), folder_mode
         )
         book.filename = new_rel
 
-    # Clean up empty old parent directories (but never BOOKS_DIR itself)
+    # Clean up empty old parent directories (but never BOOKS_DIR or AUDIOBOOKS_DIR itself)
     if current != file_path:
         try:
             for folder in [old_parent, old_parent.parent]:
-                if folder != BOOKS_DIR and folder.exists() and not any(folder.iterdir()):
+                if folder not in (BOOKS_DIR, AUDIOBOOKS_DIR) and folder.exists() and not any(folder.iterdir()):
+                    folder.rmdir()
+            # Also cleanup new hierarchy parents if anything empty there
+            for folder in [current.parent, current.parent.parent]:
+                if folder not in (BOOKS_DIR, AUDIOBOOKS_DIR) and folder.exists() and not any(folder.iterdir()):
                     folder.rmdir()
         except Exception:
             pass
@@ -1763,7 +1862,7 @@ def _fill_missing_audiobook_metadata(app):
                 
             # If duration/narrator is missing, try to extract it
             if book.duration is None or book.narrator is None:
-                path = BOOKS_DIR / book.filename
+                path = get_book_path(book)
                 if path.exists():
                     embedded = extract_embedded_metadata(path, ext)
                     if embedded:
@@ -1772,7 +1871,7 @@ def _fill_missing_audiobook_metadata(app):
                         
             # If cover is missing, try to extract it from the audio file
             if not book.cover_filename:
-                path = BOOKS_DIR / book.filename
+                path = get_book_path(book)
                 if path.exists():
                     cover_data = cover_mgr.extract_cover_from_audio(str(path))
                     if cover_data:
