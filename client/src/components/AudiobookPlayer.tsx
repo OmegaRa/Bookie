@@ -1,4 +1,4 @@
-﻿import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { Play, Pause, Volume2, VolumeX, SkipBack, SkipForward, BookOpen } from 'lucide-react'
 import { Book } from '../types'
 
@@ -30,6 +30,24 @@ export default function AudiobookPlayer({ book, onClose }: AudiobookPlayerProps)
   const [isMuted, setIsMuted] = useState(false)
   const [metadata, setMetadata] = useState<AudiobookMetadata | null>(null)
   const [isLoading, setIsLoading] = useState(true)
+  const [showChapters, setShowChapters] = useState(false)
+
+  // Find current chapter index
+  const currentChapterIndex = metadata?.chapters
+    ? metadata.chapters.findIndex((ch, idx) => {
+        const nextCh = metadata.chapters?.[idx + 1]
+        const start = ch.start_time ?? 0
+        const end = nextCh ? (nextCh.start_time ?? Infinity) : Infinity
+        return currentTime >= start && currentTime < end
+      })
+    : -1
+
+  const handleSkipToTime = (time: number) => {
+    if (audioRef.current) {
+      audioRef.current.currentTime = time
+      setCurrentTime(time)
+    }
+  }
 
   const coverUrl = book.cover_filename ? `/api/books/${book.id}/cover?t=${book.date_modified ?? ''}` : null
   const [imgError, setImgError] = useState(false)
@@ -144,6 +162,12 @@ export default function AudiobookPlayer({ book, onClose }: AudiobookPlayerProps)
               {metadata?.narrator && <span>Narrated by {metadata.narrator}</span>}
             </div>
           )}
+          {metadata?.chapters && currentChapterIndex !== -1 && (
+            <div className="text-xs font-semibold text-accent mt-2 flex items-center justify-center gap-1.5">
+              <BookOpen size={12} />
+              <span>{metadata.chapters[currentChapterIndex].title}</span>
+            </div>
+          )}
         </div>
 
         {/* Progress Bar */}
@@ -218,8 +242,41 @@ export default function AudiobookPlayer({ book, onClose }: AudiobookPlayerProps)
             {metadata?.format?.toUpperCase()}
           </div>
           
-          <div className="w-32 flex justify-end">
-            {/* Placeholder for future buttons */}
+          <div className="w-32 flex justify-end relative">
+            {metadata?.chapters && metadata.chapters.length > 0 && (
+              <>
+                <button
+                  type="button"
+                  onClick={() => setShowChapters(!showChapters)}
+                  className={['p-2 rounded-full transition-colors', showChapters ? 'bg-surface-high text-accent' : 'text-ink-muted hover:text-ink hover:bg-surface-high'].join(' ')}
+                  aria-label="Toggle chapter list"
+                >
+                  <BookOpen size={18} />
+                </button>
+                {showChapters && (
+                  <div className="absolute bottom-10 right-0 z-20 w-64 max-h-64 overflow-y-auto rounded-lg border border-line bg-surface-raised shadow-xl p-2 flex flex-col gap-1">
+                    <div className="text-xs font-semibold px-2 py-1 border-b border-line text-ink-muted mb-1">Chapters</div>
+                    {metadata.chapters.map((ch, idx) => {
+                      const isActive = currentChapterIndex === idx
+                      return (
+                        <button
+                          key={idx}
+                          type="button"
+                          onClick={() => {
+                            if (ch.start_time != null) handleSkipToTime(ch.start_time)
+                            setShowChapters(false)
+                          }}
+                          className={['flex items-center justify-between text-left text-xs px-2 py-1.5 rounded transition-colors', isActive ? 'bg-accent/15 text-accent font-medium' : 'text-ink hover:bg-surface-high'].join(' ')}
+                        >
+                          <span className="truncate flex-1 pr-2">{ch.title}</span>
+                          <span className="text-ink-faint font-mono shrink-0">{formatTime(ch.start_time ?? 0)}</span>
+                        </button>
+                      )
+                    })}
+                  </div>
+                )}
+              </>
+            )}
           </div>
         </div>
 

@@ -23,6 +23,16 @@ function formatFileSize(bytes: number | null): string {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
 }
 
+function formatDuration(seconds: number | null): string {
+  if (seconds === null || isNaN(seconds)) return 'Unknown duration'
+  const hours = Math.floor(seconds / 3600)
+  const minutes = Math.floor((seconds % 3600) / 60)
+  if (hours > 0) {
+    return `${hours}h ${minutes}m`
+  }
+  return `${minutes}m`
+}
+
 interface TagDropdownProps {
   bookId: number
   allTags: Tag[]
@@ -111,6 +121,7 @@ export default function BookDialog({ bookId, onClose, onDelete }: BookDialogProp
   const [publishedDate, setPublishedDate] = useState('')
   const [series, setSeries] = useState('')
   const [seriesOrder, setSeriesOrder] = useState('')
+  const [narrator, setNarrator] = useState('')
   const [imgError, setImgError] = useState(false)
 
   // Pending tag changes — only committed when Save is clicked
@@ -145,6 +156,7 @@ export default function BookDialog({ bookId, onClose, onDelete }: BookDialogProp
       setPublishedDate(book.published_date ?? '')
       setSeries(book.series ?? '')
       setSeriesOrder(book.series_order != null ? String(book.series_order) : '')
+      setNarrator(book.narrator ?? '')
       setImgError(false)
       setPendingTagsAdded([])
       setPendingTagsRemoved([])
@@ -204,6 +216,7 @@ export default function BookDialog({ bookId, onClose, onDelete }: BookDialogProp
         published_date: publishedDate || null,
         series: series || null,
         series_order: seriesOrder !== '' ? Number(seriesOrder) : null,
+        narrator: book?.is_audiobook ? (narrator || null) : undefined,
       })
       // Apply pending cover if any
       if (pendingCoverFile) {
@@ -392,6 +405,13 @@ export default function BookDialog({ bookId, onClose, onDelete }: BookDialogProp
                 </div>
               </div>
 
+              {book.is_audiobook && (
+                <div className="flex flex-col gap-1">
+                  <label className="text-xs font-medium text-ink-muted uppercase tracking-wide">Narrator</label>
+                  <input type="text" value={narrator} onChange={e => setNarrator(e.target.value)} placeholder="Unknown narrator" className="field" />
+                </div>
+              )}
+
               <div className="grid grid-cols-10 gap-3">
                 <div className="col-span-2 flex flex-col gap-1">
                   <label className="text-xs font-medium text-ink-muted uppercase tracking-wide">Year</label>
@@ -431,6 +451,9 @@ export default function BookDialog({ bookId, onClose, onDelete }: BookDialogProp
         {book && (
           <div className="mx-5 mb-5 px-3 py-2 rounded-lg bg-surface-raised border border-line flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-ink-muted">
             <span className="truncate font-mono flex-1 min-w-0">{book.filename}</span>
+            {book.is_audiobook && book.duration && (
+              <span>Duration: {formatDuration(book.duration)}</span>
+            )}
             <span>{formatFileSize(book.file_size)}</span>
           </div>
         )}

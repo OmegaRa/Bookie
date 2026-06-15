@@ -1,6 +1,6 @@
 import { useState, useRef } from 'react'
 import { createPortal } from 'react-dom'
-import { BookOpen, MoreVertical, Download, Send, Check, CheckSquare, MoreHorizontal } from 'lucide-react'
+import { BookOpen, MoreVertical, Download, Send, Check, CheckSquare, MoreHorizontal, Headphones, Info } from 'lucide-react'
 import { useQuery, useMutation } from '@tanstack/react-query'
 import { Book, EmailAddress } from '../types'
 import * as api from '../api/client'
@@ -21,7 +21,7 @@ export default function BookCard({ book, onClick }: BookCardProps) {
   const [menuPos, setMenuPos] = useState({ top: 0, left: 0 })
   const [sendOpen, setSendOpen] = useState(false)
   const btnRef = useRef<HTMLButtonElement>(null)
-  const { selectionMode, selectedBookIds, toggleBookSelection, selectRangeBooks, lastSelectedId, visibleBookIds, setSearchQuery, setSelectionMode } = useStore()
+  const { selectionMode, selectedBookIds, toggleBookSelection, selectRangeBooks, lastSelectedId, visibleBookIds, setSearchQuery, setSelectionMode, setSelectedBookId } = useStore()
 
   const coverUrl = book.cover_filename && !imgError
     ? `/api/books/${book.id}/cover?t=${book.date_modified ?? ''}`
@@ -110,6 +110,14 @@ export default function BookCard({ book, onClick }: BookCardProps) {
               {seriesBadge}
             </span>
           )}
+
+          <div className="absolute bottom-2 right-2 z-10 flex items-center justify-center w-6 h-6 rounded-full bg-black/60 text-white backdrop-blur-sm border border-white/10" title={book.is_audiobook ? 'Audiobook' : 'Ebook'}>
+            {book.is_audiobook ? (
+              <Headphones size={12} className="text-white" />
+            ) : (
+              <BookOpen size={12} className="text-white" />
+            )}
+          </div>
         </div>
 
         {/* Selection checkbox — top-left, always visible in selection mode */}
@@ -161,6 +169,10 @@ export default function BookCard({ book, onClick }: BookCardProps) {
             className="fixed z-50 w-36 bg-surface-raised border border-line rounded-lg shadow-xl py-1 book-menu-pop"
             style={{ top: menuPos.top, left: menuPos.left }}
           >
+            <button type="button" onClick={() => { setMenuOpen(false); setSelectedBookId(book.id) }}
+              className="flex items-center gap-2 w-full px-3 py-2 text-sm text-ink hover:bg-surface-high transition-colors">
+              <Info size={14} className="text-ink-muted" /> Edit Metadata
+            </button>
             <button type="button" onClick={() => { setMenuOpen(false); setSelectionMode(true); toggleBookSelection(book.id) }}
               className="flex items-center gap-2 w-full px-3 py-2 text-sm text-ink hover:bg-surface-high transition-colors">
               <CheckSquare size={14} className="text-ink-muted" /> Select

@@ -1,12 +1,15 @@
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { Loader2, BookOpen, ChevronLeft, ChevronRight } from 'lucide-react'
+import { Loader2, BookOpen, ChevronLeft, ChevronRight, X } from 'lucide-react'
 import { useStore } from '../store'
 import * as api from '../api/client'
+import { Book } from '../types'
 import FilterBar from '../components/FilterBar'
 import BookCard from '../components/BookCard'
 import BookListItem from '../components/BookListItem'
 import BookDialog from '../components/BookDialog'
+import EbookReader from '../components/EbookReader'
+import AudiobookPlayer from '../components/AudiobookPlayer'
 
 function getPageNumbers(current: number, total: number): (number | '…')[] {
   if (total <= 7) return Array.from({ length: total }, (_, i) => i + 1)
@@ -22,6 +25,18 @@ function getPageNumbers(current: number, total: number): (number | '…')[] {
 
 export default function LibraryPage() {
   const { filters, page, setPage, perPage, viewMode, gridSize, selectedBookId, setSelectedBookId, setVisibleBookIds } = useStore()
+  const [activeReaderBook, setActiveReaderBook] = useState<Book | null>(null)
+  const [activePlayerBook, setActivePlayerBook] = useState<Book | null>(null)
+
+  const handleBookClick = (book: Book) => {
+    if (book.is_audiobook) {
+      setActivePlayerBook(book)
+    } else if (['epub', 'pdf'].includes(book.file_format?.toLowerCase() || '')) {
+      setActiveReaderBook(book)
+    } else {
+      setSelectedBookId(book.id)
+    }
+  }
 
   const queryKey = ['books', filters, page, perPage]
   const { data, isFetching, isError, error } = useQuery({
@@ -90,7 +105,7 @@ export default function LibraryPage() {
             style={{ gridTemplateColumns: `repeat(auto-fill, minmax(${gridSize}px, 1fr))` }}
           >
             {books.map(book => (
-              <BookCard key={book.id} book={book} onClick={() => setSelectedBookId(book.id)} />
+              <BookCard key={book.id} book={book} onClick={() => handleBookClick(book)} />
             ))}
           </div>
         )}
@@ -98,7 +113,7 @@ export default function LibraryPage() {
         {viewMode === 'list' && books.length > 0 && (
           <div className="space-y-1">
             {books.map(book => (
-              <BookListItem key={book.id} book={book} onClick={() => setSelectedBookId(book.id)} />
+              <BookListItem key={book.id} book={book} onClick={() => handleBookClick(book)} />
             ))}
           </div>
         )}
@@ -151,6 +166,31 @@ export default function LibraryPage() {
           onClose={() => setSelectedBookId(null)}
           onDelete={() => setSelectedBookId(null)}
         />
+      )}
+
+      {activeReaderBook && (
+        <div className="fixed inset-0 z-50 bg-surface-card flex flex-col">
+          <div className="flex-1 min-h-0">
+            <EbookReader book={activeReaderBook} onClose={() => setActiveReaderBook(null)} />
+          </div>
+        </div>
+      )}
+
+      {activePlayerBook && (
+        <div className="fixed inset-0 z-50 bg-surface flex flex-col">
+          <div className="absolute top-4 right-4 z-10">
+            <button
+              onClick={() => setActivePlayerBook(null)}
+              className="p-2 rounded bg-surface-raised hover:bg-surface-high border border-line text-ink transition-colors"
+              aria-label="Close player"
+            >
+              <X size={20} />
+            </button>
+          </div>
+          <div className="flex-1 min-h-0">
+            <AudiobookPlayer book={activePlayerBook} onClose={() => setActivePlayerBook(null)} />
+          </div>
+        </div>
       )}
     </div>
   )

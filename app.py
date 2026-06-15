@@ -142,6 +142,34 @@ def _extract_pdf_metadata(path: Path) -> dict:
         return {}
 
 
+def _extract_chapters_via_ffprobe(filepath: str) -> list[dict]:
+    """Extract chapter markers via ffprobe if available in system PATH."""
+    import subprocess
+    import json
+    try:
+        res = subprocess.run(
+            ["ffprobe", "-v", "quiet", "-print_format", "json", "-show_chapters", filepath],
+            capture_output=True,
+            text=True,
+            timeout=5,
+        )
+        if res.returncode == 0:
+            data = json.loads(res.stdout)
+            chapters = []
+            for ch in data.get("chapters", []):
+                start_time = float(ch.get("start_time", 0.0))
+                tags = ch.get("tags", {})
+                title = tags.get("title", f"Chapter {len(chapters)+1}")
+                chapters.append({
+                    "title": title,
+                    "start_time": start_time
+                })
+            return chapters
+    except Exception:
+        pass
+    return []
+
+
 def _extract_audio_metadata(path: Path) -> dict:
     """Extract metadata from MP3, M4B, FLAC, and other audio formats."""
     try:
@@ -150,17 +178,32 @@ def _extract_audio_metadata(path: Path) -> dict:
         if audio is None:
             return {}
 
-        # Helper to safely get tag values
+        # Helper to safely get tag values, decoding mutagen freeform types
         def get_tag(key, fallback_keys=None):
             val = audio.get(key)
-            if val:
-                return str(val[0]) if isinstance(val, list) and val else str(val)
-            if fallback_keys:
+            if not val and fallback_keys:
                 for fk in fallback_keys:
                     val = audio.get(fk)
                     if val:
-                        return str(val[0]) if isinstance(val, list) and val else str(val)
-            return None
+                        break
+            if not val:
+                return None
+            if isinstance(val, list):
+                if not val:
+                    return None
+                val = val[0]
+            # Convert mutagen specific types
+            if val.__class__.__name__ == "MP4FreeForm":
+                return bytes(val).decode("utf-8", errors="replace").strip()
+            if isinstance(val, bytes):
+                return val.decode("utf-8", errors="replace").strip()
+            # ID3 text frame
+            if hasattr(val, "text"):
+                t = val.text
+                if isinstance(t, list) and t:
+                    return str(t[0]).strip()
+                return str(t).strip()
+            return str(val).strip()
 
         duration = None
         try:
@@ -169,14 +212,56 @@ def _extract_audio_metadata(path: Path) -> dict:
         except Exception:
             pass
 
+        # Extract Chapters
+        chapters = _extract_chapters_via_ffprobe(str(path))
+        if not chapters:
+            # Fallback 1: Nero-style MP4 chapters
+            if hasattr(audio, "chapters") and audio.chapters:
+                try:
+                    for ch in audio.chapters:
+                        start_time = float(getattr(ch, "start", 0))
+                        # mutagen sometimes returns start as milliseconds
+                        if start_time > 10000:
+                            start_time /= 1000.0
+                        title = getattr(ch, "title", f"Chapter {len(chapters)+1}")
+                        chapters.append({
+                            "title": title,
+                            "start_time": start_time
+                        })
+                except Exception as e:
+                    logger.debug("Failed to extract MP4 chapters: %s", e)
+            # Fallback 2: ID3 CHAP chapters (MP3, etc.)
+            elif hasattr(audio, "getall"):
+                try:
+                    chaps = audio.getall("CHAP")
+                    if chaps:
+                        for chap in chaps:
+                            title = f"Chapter {len(chapters)+1}"
+                            if hasattr(chap, "sub_frames") and chap.sub_frames:
+                                tit2 = chap.sub_frames.get("TIT2")
+                                if tit2 and hasattr(tit2, "text") and tit2.text:
+                                    title = str(tit2.text[0])
+                            start_time = float(chap.start_time) / 1000.0 if hasattr(chap, "start_time") else 0.0
+                            chapters.append({
+                                "title": title,
+                                "start_time": start_time
+                            })
+                        chapters.sort(key=lambda x: x["start_time"])
+                except Exception as e:
+                    logger.debug("Failed to extract ID3 chapters: %s", e)
+
         return {
             "title": get_tag("TIT2", ["©nam", "Title"]),  # Title
             "author": get_tag("TPE1", ["©ART", "Artist"]),  # Performer/Artist
-            "narrator": get_tag("TPE2", ["©NAR"]),  # Narrator/Band
-            "description": get_tag("TIT3", ["©cmt", "Description"]),  # Subtitle/Comments
-            "publisher": get_tag("TPUB", ["©pub", "Publisher"]),  # Publisher
+            "narrator": get_tag("TPE2", ["©NAR", "©nrt"]),  # Narrator/Band/Narrator Tag
+            "description": get_tag("TIT3", ["©cmt", "©des", "Description"]),  # Subtitle/Comments/Description
+            "publisher": get_tag("TPUB", ["©pub", "----:com.pilabor.tone:PUBLISHER", "Publisher"]),  # Publisher
             "published_date": get_tag("TDRC", ["©day", "Year"]),  # Recording date/Year
             "duration": duration,
+            "series": get_tag("----:com.pilabor.tone:SERIES"),
+            "series_order": get_tag("----:com.pilabor.tone:PART"),
+            "language": get_tag("----:com.pilabor.tone:LANGUAGE", ["TLAN", "Language"]),
+            "chapters": chapters,
         }
     except Exception as exc:
         logger.debug("Audio metadata extraction failed: %s", exc)
@@ -436,6 +521,7 @@ def create_app():
         COVERS_DIR.mkdir(parents=True, exist_ok=True)
         db.create_all()
         _migrate_db(app)
+        _fill_missing_audiobook_metadata(app)
         # Restore persisted log level (defaults to INFO on first run)
         _saved_level = (Settings.get("log_level") or "INFO").upper()
         _saved_numeric = getattr(logging, _saved_level, logging.INFO)
@@ -615,12 +701,14 @@ def create_app():
             if rel in known:
                 continue
 
+            is_audio = ext in AUDIOBOOK_EXTENSIONS
             book = Book(
                 filename=rel,
                 file_format=ext,
                 file_size=path.stat().st_size,
                 title=path.stem,
-                is_audiobook=ext in AUDIOBOOK_EXTENSIONS,
+                is_audiobook=is_audio,
+                audio_format=ext if is_audio else None,
             )
             db.session.add(book)
             db.session.flush()
@@ -631,6 +719,8 @@ def create_app():
                 cover_data = cover_mgr.extract_cover_from_epub(str(path))
             elif ext == "pdf":
                 cover_data = cover_mgr.extract_cover_from_pdf(str(path))
+            elif is_audio:
+                cover_data = cover_mgr.extract_cover_from_audio(str(path))
             if cover_data:
                 cf = cover_mgr.save_cover(book.id, cover_data)
                 if cf:
@@ -687,12 +777,14 @@ def create_app():
         file.save(str(dest))
         size = dest.stat().st_size
 
+        is_audio = ext in AUDIOBOOK_EXTENSIONS
         book = Book(
             filename=filename,
             file_format=ext,
             file_size=size,
             title=Path(filename).stem,
-            is_audiobook=ext in AUDIOBOOK_EXTENSIONS,
+            is_audiobook=is_audio,
+            audio_format=ext if is_audio else None,
         )
         db.session.add(book)
         db.session.commit()
@@ -703,6 +795,8 @@ def create_app():
             cover_data = cover_mgr.extract_cover_from_epub(str(dest))
         elif ext == "pdf":
             cover_data = cover_mgr.extract_cover_from_pdf(str(dest))
+        elif is_audio:
+            cover_data = cover_mgr.extract_cover_from_audio(str(dest))
         if cover_data:
             cf = cover_mgr.save_cover(book.id, cover_data)
             if cf:
@@ -735,7 +829,8 @@ def create_app():
             return jsonify({"error": "Invalid JSON payload"}), 400
         fields = [
             "title", "author", "published_date", "page_count",
-            "series", "series_order", "rating",
+            "series", "series_order", "rating", "narrator",
+            "publisher", "language", "isbn", "isbn13", "description"
         ]
         for f in fields:
             if f not in data:
@@ -1620,22 +1715,103 @@ def _migrate_db(app):
                     logger.debug("Migration skipped (already applied): %s — %s", stmt[:60], exc)
 
 
+def _fill_missing_audiobook_metadata(app):
+    """Scan existing database for audiobooks and populate missing metadata/covers."""
+    with app.app_context():
+        # Get all audiobooks
+        audiobooks = Book.query.filter_by(is_audiobook=True).all()
+        updated = False
+        for book in audiobooks:
+            ext = Path(book.filename).suffix.lstrip(".").lower()
+            
+            # Ensure audio_format is set
+            if not book.audio_format:
+                book.audio_format = ext
+                updated = True
+                
+            # If duration/narrator is missing, try to extract it
+            if book.duration is None or book.narrator is None:
+                path = BOOKS_DIR / book.filename
+                if path.exists():
+                    embedded = extract_embedded_metadata(path, ext)
+                    if embedded:
+                        _apply_metadata(book, embedded, replace_missing_only=True)
+                        updated = True
+                        
+            # If cover is missing, try to extract it from the audio file
+            if not book.cover_filename:
+                path = BOOKS_DIR / book.filename
+                if path.exists():
+                    cover_data = cover_mgr.extract_cover_from_audio(str(path))
+                    if cover_data:
+                        cf = cover_mgr.save_cover(book.id, cover_data)
+                        if cf:
+                            book.cover_filename = cf
+                            updated = True
+        if updated:
+            db.session.commit()
+
+
 def _apply_metadata(book: Book, meta: dict, replace_missing_only: bool = None):
     if replace_missing_only is None:
         replace_missing_only = Settings.get("meta_replace_missing", "true") == "true"
+    
+    # Map all metadata fields supported by models.Book
     field_map = {
-        "title": "title", "author": "author",
+        "title": "title",
+        "author": "author",
         "published_date": "published_date",
         "page_count": "page_count",
+        "publisher": "publisher",
+        "language": "language",
+        "description": "description",
+        "isbn": "isbn",
+        "isbn13": "isbn13",
+        "rating": "rating",
+        "series": "series",
+        "series_order": "series_order",
+        "narrator": "narrator",
+        "duration": "duration",
     }
+    
     for src_key, model_key in field_map.items():
         val = meta.get(src_key)
-        if val:
+        if val is not None:
+            # Handle numeric/string conversions safely
             if src_key == "published_date":
                 val = str(val)[:4]  # store year only
+            elif src_key == "series_order":
+                try:
+                    val = float(val)
+                except (ValueError, TypeError):
+                    continue
+            elif src_key == "duration":
+                try:
+                    val = int(float(val))
+                except (ValueError, TypeError):
+                    continue
+            elif src_key == "page_count":
+                try:
+                    val = int(float(val))
+                except (ValueError, TypeError):
+                    continue
+            elif src_key == "rating":
+                try:
+                    val = float(val)
+                except (ValueError, TypeError):
+                    continue
+            
             if replace_missing_only and getattr(book, model_key, None):
                 continue
             setattr(book, model_key, val)
+            
+    # Apply chapters if present
+    chapters = meta.get("chapters")
+    if chapters is not None:
+        if not replace_missing_only or not book.chapters:
+            import json
+            book.chapters = json.dumps(chapters)
+            
     cover_url = meta.get("cover_url")
     if cover_url:
         if not replace_missing_only or not book.cover_filename:

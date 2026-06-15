@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react'
-import { BookOpen, MoreVertical, Download, Send, Check, CheckSquare, MoreHorizontal } from 'lucide-react'
+import { BookOpen, MoreVertical, Download, Send, Check, CheckSquare, MoreHorizontal, Info } from 'lucide-react'
 import { useQuery, useMutation } from '@tanstack/react-query'
 import { Book, EmailAddress } from '../types'
 import * as api from '../api/client'
@@ -33,7 +33,7 @@ export default function BookListItem({ book, onClick }: BookListItemProps) {
   const [menuOpen, setMenuOpen] = useState(false)
   const [sendOpen, setSendOpen] = useState(false)
   const menuRef = useRef<HTMLDivElement>(null)
-  const { selectionMode, selectedBookIds, toggleBookSelection, selectRangeBooks, lastSelectedId, visibleBookIds, setSearchQuery, setSelectionMode } = useStore()
+  const { selectionMode, selectedBookIds, toggleBookSelection, selectRangeBooks, lastSelectedId, visibleBookIds, setSearchQuery, setSelectionMode, setSelectedBookId } = useStore()
 
   const coverUrl = book.cover_filename && !imgError
     ? `/api/books/${book.id}/cover?t=${book.date_modified ?? ''}`
@@ -185,6 +185,10 @@ export default function BookListItem({ book, onClick }: BookListItemProps) {
 
             {menuOpen && (
               <div className="absolute right-0 top-full mt-0.5 w-44 bg-surface-raised border border-line rounded-lg shadow-xl py-1 z-50">
+                <button type="button" onClick={() => { setMenuOpen(false); setSelectedBookId(book.id) }}
+                  className="flex items-center gap-2 w-full px-3 py-2 text-sm text-ink hover:bg-surface-high transition-colors">
+                  <Info size={14} className="text-ink-muted" /> Edit Metadata
+                </button>
                 <button type="button" onClick={() => { setMenuOpen(false); setSelectionMode(true); toggleBookSelection(book.id) }}
                   className="flex items-center gap-2 w-full px-3 py-2 text-sm text-ink hover:bg-surface-high transition-colors">
                   <CheckSquare size={14} className="text-ink-muted" /> Select

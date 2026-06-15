@@ -124,6 +124,35 @@ def extract_cover_from_pdf(filepath: str) -> bytes | None:
     return None
 
 
+def extract_cover_from_audio(filepath: str) -> bytes | None:
+    """Extract embedded cover image from audio file (MP4, MP3, FLAC, etc.)."""
+    try:
+        from mutagen import File
+        audio = File(filepath)
+        if audio is None:
+            return None
+        
+        # Check MP4 tags (M4B, M4A)
+        if "covr" in audio:
+            covr = audio["covr"]
+            if covr:
+                return bytes(covr[0])
+                
+        # Check ID3 APIC frame (MP3)
+        if hasattr(audio, "tags") and audio.tags:
+            for key, tag in audio.tags.items():
+                if key.startswith("APIC") and hasattr(tag, "data"):
+                    return tag.data
+                    
+        # Check FLAC / OGG / etc. pictures
+        if hasattr(audio, "pictures") and audio.pictures:
+            return audio.pictures[0].data
+            
+    except Exception as exc:
+        logger.warning("Audio cover extraction failed for %s: %s", filepath, exc)
+    return None
+
+
 def save_cover(book_id: int, image_data: bytes, fmt: str = "JPEG") -> str | None:
     """Process and save a cover image, returning the filename."""
     ensure_dirs()
