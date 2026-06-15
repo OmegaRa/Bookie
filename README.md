@@ -17,7 +17,9 @@ I have added the ability to host audiobooks, and the ability to listen to audiob
 ## Features
 
 **Library Management**
-- Multi-format support: EPUB, PDF, MOBI, AZW, AZW3, FB2, DJVU, CBZ, CBR, and TXT
+- Multi-format support:
+  - Ebooks/Documents: EPUB, PDF, MOBI, AZW, AZW3, FB2, DJVU, CBZ, CBR, and TXT
+  - Audiobooks: MP3, M4B, M4A, AAC, FLAC, OGG, WMA, and OPUS
 - Automatic metadata fetching from Open Library, Apple Books, and Goodreads
 - Cover extraction, search, and direct embedding into EPUB files
 - Series tracking and tagging (think shelves, minus the complexity)
