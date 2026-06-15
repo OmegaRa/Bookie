@@ -36,6 +36,11 @@ export interface Book {
   audio_format: string | null
   chapters: string | null
 
+  // Progress tracking
+  read_status?: string
+  progress?: number
+  progress_location?: string | null
+
   // Timestamps
   date_added: string
   date_modified: string

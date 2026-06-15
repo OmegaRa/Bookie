@@ -111,13 +111,26 @@ export default function BookCard({ book, onClick }: BookCardProps) {
             </span>
           )}
 
-          <div className="absolute bottom-2 right-2 z-10 flex items-center justify-center w-6 h-6 rounded-full bg-black/60 text-white backdrop-blur-sm border border-white/10" title={book.is_audiobook ? 'Audiobook' : 'Ebook'}>
+          <div className={[
+            'absolute right-2 z-10 flex items-center justify-center w-6 h-6 rounded-full bg-black/60 text-white backdrop-blur-sm border border-white/10 transition-all duration-200',
+            book.progress !== undefined && book.progress > 0 ? 'bottom-3.5' : 'bottom-2'
+          ].join(' ')} title={book.is_audiobook ? 'Audiobook' : 'Ebook'}>
             {book.is_audiobook ? (
               <Headphones size={12} className="text-white" />
             ) : (
               <BookOpen size={12} className="text-white" />
             )}
           </div>
+
+          {/* Progress bar */}
+          {book.progress !== undefined && book.progress > 0 && (
+            <div className="absolute bottom-0 left-0 right-0 h-1.5 bg-black/40 backdrop-blur-sm z-10">
+              <div 
+                className="h-full bg-accent transition-all duration-300" 
+                style={{ width: `${Math.min(100, book.progress * 100)}%` }} 
+              />
+            </div>
+          )}
         </div>
 
         {/* Selection checkbox — top-left, always visible in selection mode */}

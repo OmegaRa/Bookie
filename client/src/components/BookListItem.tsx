@@ -118,12 +118,21 @@ export default function BookListItem({ book, onClick }: BookListItemProps) {
           aria-label={`Open ${book.title ?? book.filename}`}
         >
           {/* Thumbnail */}
-          <div className="shrink-0 w-10 h-[60px] rounded overflow-hidden bg-surface-raised border border-line flex items-center justify-center">
+          <div className="relative shrink-0 w-10 h-[60px] rounded overflow-hidden bg-surface-raised border border-line flex items-center justify-center">
             {coverUrl ? (
               <img src={coverUrl} alt="" onError={() => setImgError(true)}
                 className="w-full h-full object-cover" loading="lazy" draggable={false} />
             ) : (
               <BookOpen size={18} className="text-ink-faint" />
+            )}
+            {/* Progress bar */}
+            {book.progress !== undefined && book.progress > 0 && (
+              <div className="absolute bottom-0 left-0 right-0 h-1 bg-black/40 backdrop-blur-sm z-10">
+                <div 
+                  className="h-full bg-accent transition-all duration-300" 
+                  style={{ width: `${Math.min(100, book.progress * 100)}%` }} 
+                />
+              </div>
             )}
           </div>
 

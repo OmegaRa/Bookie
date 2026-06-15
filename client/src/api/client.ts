@@ -451,6 +451,13 @@ export function sendBook(bookId: number, recipient?: string): Promise<{ success:
   })
 }
 
+export function saveBookProgress(id: number, data: { progress: number; progress_location?: string; read_status?: string }): Promise<Book> {
+  return api<Book>(`/api/books/${id}/progress`, {
+    method: 'POST',
+    body: JSON.stringify(data),
+  })
+}
+
 // ─── Default export (namespace object) ───────────────────────────────────────
 
 export default {
@@ -520,4 +527,5 @@ export default {
   deleteEmailAddress,
   setDefaultEmailAddress,
   sendBook,
+  saveBookProgress,
 }

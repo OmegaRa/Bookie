@@ -1016,6 +1016,35 @@ def create_app():
             "file_size": book.file_size,
         })
 
+    @app.route("/api/books/<int:book_id>/progress", methods=["POST"])
+    @login_required
+    def save_book_progress(book_id):
+        """Save read/listen progress and status for a book."""
+        book = Book.query.get_or_404(book_id)
+        data = request.get_json(silent=True) or {}
+        
+        progress = data.get("progress")
+        progress_location = data.get("progress_location")
+        read_status = data.get("read_status")
+        
+        if progress is not None:
+            try:
+                progress = max(0.0, min(1.0, float(progress)))
+                book.progress = progress
+            except (TypeError, ValueError):
+                return jsonify({"error": "Invalid progress value"}), 400
+                
+        if progress_location is not None:
+            book.progress_location = str(progress_location)
+            
+        if read_status is not None:
+            if read_status not in ("unread", "reading", "finished"):
+                return jsonify({"error": "Invalid read_status value"}), 400
+            book.read_status = read_status
+            
+        db.session.commit()
+        return jsonify(book.to_dict())
+
     @app.route("/api/books/<int:book_id>/rename", methods=["POST"])
     @login_required
     def rename_book(book_id):
@@ -1704,6 +1733,9 @@ def _migrate_db(app):
         "CREATE TABLE IF NOT EXISTS book_tags (id INTEGER PRIMARY KEY AUTOINCREMENT, book_id INTEGER REFERENCES books(id), tag_id INTEGER REFERENCES tags(id), UNIQUE(book_id, tag_id))",
         "CREATE INDEX IF NOT EXISTS ix_books_language ON books (language)",
         "CREATE INDEX IF NOT EXISTS ix_books_series ON books (series)",
+        "ALTER TABLE books ADD COLUMN read_status TEXT DEFAULT 'unread'",
+        "ALTER TABLE books ADD COLUMN progress REAL DEFAULT 0.0",
+        "ALTER TABLE books ADD COLUMN progress_location TEXT",
     ]
     with app.app_context():
         with db.engine.connect() as conn:

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { Loader2, BookOpen, ChevronLeft, ChevronRight, X } from 'lucide-react'
 import { useStore } from '../store'
 import * as api from '../api/client'
@@ -27,6 +27,17 @@ export default function LibraryPage() {
   const { filters, page, setPage, perPage, viewMode, gridSize, selectedBookId, setSelectedBookId, setVisibleBookIds } = useStore()
   const [activeReaderBook, setActiveReaderBook] = useState<Book | null>(null)
   const [activePlayerBook, setActivePlayerBook] = useState<Book | null>(null)
+  const queryClient = useQueryClient()
+
+  const handleCloseReader = () => {
+    setActiveReaderBook(null)
+    queryClient.invalidateQueries({ queryKey: ['books'] })
+  }
+
+  const handleClosePlayer = () => {
+    setActivePlayerBook(null)
+    queryClient.invalidateQueries({ queryKey: ['books'] })
+  }
 
   const handleBookClick = (book: Book) => {
     if (book.is_audiobook) {
@@ -171,7 +182,7 @@ export default function LibraryPage() {
       {activeReaderBook && (
         <div className="fixed inset-0 z-50 bg-surface-card flex flex-col">
           <div className="flex-1 min-h-0">
-            <EbookReader book={activeReaderBook} onClose={() => setActiveReaderBook(null)} />
+            <EbookReader book={activeReaderBook} onClose={handleCloseReader} />
           </div>
         </div>
       )}
@@ -180,7 +191,7 @@ export default function LibraryPage() {
         <div className="fixed inset-0 z-50 bg-surface flex flex-col">
           <div className="absolute top-4 right-4 z-10">
             <button
-              onClick={() => setActivePlayerBook(null)}
+              onClick={handleClosePlayer}
               className="p-2 rounded bg-surface-raised hover:bg-surface-high border border-line text-ink transition-colors"
               aria-label="Close player"
             >
@@ -188,7 +199,7 @@ export default function LibraryPage() {
             </button>
           </div>
           <div className="flex-1 min-h-0">
-            <AudiobookPlayer book={activePlayerBook} onClose={() => setActivePlayerBook(null)} />
+            <AudiobookPlayer book={activePlayerBook} onClose={handleClosePlayer} />
           </div>
         </div>
       )}

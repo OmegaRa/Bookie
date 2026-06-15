@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import { ChevronLeft, ChevronRight, ZoomIn, ZoomOut, X } from 'lucide-react'
 import * as pdfjsLib from 'pdfjs-dist'
 import { Book } from '../types'
+import { saveBookProgress } from '../api/client'
 
 interface PdfReaderProps {
   book: Book
@@ -25,7 +26,8 @@ export default function PdfReader({ book, onClose }: PdfReaderProps) {
         const pdfDoc = await pdfjsLib.getDocument(`/api/books/${book.id}/download`).promise
         setPdf(pdfDoc)
         setTotalPages(pdfDoc.numPages)
-        setCurrentPage(1)
+        const startPage = book.progress_location ? parseInt(book.progress_location, 10) : 1
+        setCurrentPage(Math.min(pdfDoc.numPages, Math.max(1, startPage)))
         setIsLoading(false)
       } catch (error) {
         console.error('Failed to load PDF:', error)
@@ -35,6 +37,16 @@ export default function PdfReader({ book, onClose }: PdfReaderProps) {
 
     loadPdf()
   }, [book.id])
+
+  useEffect(() => {
+    if (isLoading || !totalPages || !currentPage) return
+    const progress = totalPages > 0 ? parseFloat((currentPage / totalPages).toFixed(4)) : 0.0
+    saveBookProgress(book.id, {
+      progress,
+      progress_location: String(currentPage),
+      read_status: currentPage === totalPages ? 'finished' : 'reading'
+    }).catch(err => console.error('Failed to save PDF progress:', err))
+  }, [currentPage, totalPages, isLoading, book.id])
 
   useEffect(() => {
     if (!pdf || !canvasRef.current) return

@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import { Settings, X } from 'lucide-react'
 import { ReactReader, ReactReaderStyle } from 'react-reader'
 import { Book } from '../types'
+import { saveBookProgress } from '../api/client'
 
 interface EpubReaderProps {
   book: Book
@@ -9,7 +10,7 @@ interface EpubReaderProps {
 }
 
 export default function EpubReader({ book, onClose }: EpubReaderProps) {
-  const [location, setLocation] = useState<string | number>(0)
+  const [location, setLocation] = useState<string | number>(book.progress_location || 0)
   const [url, setUrl] = useState<ArrayBuffer | string | null>(null)
   const renditionRef = useRef<any>(null)
   const [showSettings, setShowSettings] = useState(false)
@@ -93,6 +94,31 @@ export default function EpubReader({ book, onClose }: EpubReaderProps) {
     }
   }
 
+  const handleLocationChanged = (epubcfi: string) => {
+    setLocation(epubcfi)
+    if (renditionRef.current && renditionRef.current.book) {
+      const bookObj = renditionRef.current.book
+      let progress = 0
+      
+      if (bookObj.locations && bookObj.locations.length > 0 && typeof bookObj.locations.percentageFromCfi === 'function') {
+        const percentage = bookObj.locations.percentageFromCfi(epubcfi)
+        progress = isNaN(percentage) || percentage < 0 ? 0 : parseFloat(percentage.toFixed(4))
+      } else if (bookObj.spine && bookObj.spine.length > 0) {
+        const currentLocation = renditionRef.current.currentLocation()
+        if (currentLocation && currentLocation.start) {
+          const index = currentLocation.start.index
+          progress = parseFloat((index / bookObj.spine.length).toFixed(4))
+        }
+      }
+
+      saveBookProgress(book.id, {
+        progress,
+        progress_location: epubcfi,
+        read_status: progress >= 0.99 ? 'finished' : 'reading'
+      }).catch(err => console.error('Failed to save EPUB progress:', err))
+    }
+  }
+
   return (
     <div className="flex flex-col h-full bg-surface-card rounded-lg overflow-hidden border border-line relative">
       {/* Settings Panel */}
@@ -148,7 +174,7 @@ export default function EpubReader({ book, onClose }: EpubReaderProps) {
             url={url}
             title={book.title || book.filename}
             location={location}
-            locationChanged={(epubcfi: string) => setLocation(epubcfi)}
+            locationChanged={handleLocationChanged}
             readerStyles={readerStyles}
             getRendition={(rendition) => {
               renditionRef.current = rendition
@@ -156,6 +182,10 @@ export default function EpubReader({ book, onClose }: EpubReaderProps) {
               rendition.themes.override('color', textColor, true);
               rendition.themes.override('background', 'transparent', true);
               rendition.themes.fontSize(`${fontSize}%`);
+              
+              rendition.book.ready.then(() => {
+                rendition.book.locations.generate(1600).catch((e: any) => console.error('Failed to generate locations:', e))
+              })
             }}
           />
         ) : (

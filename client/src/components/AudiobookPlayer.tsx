@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from 'react'
 import { Play, Pause, Volume2, VolumeX, SkipBack, SkipForward, BookOpen } from 'lucide-react'
 import { Book } from '../types'
+import { saveBookProgress } from '../api/client'
 
 interface AudiobookPlayerProps {
   book: Book
@@ -31,6 +32,63 @@ export default function AudiobookPlayer({ book, onClose }: AudiobookPlayerProps)
   const [metadata, setMetadata] = useState<AudiobookMetadata | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [showChapters, setShowChapters] = useState(false)
+
+  const lastSavedTimeRef = useRef<number>(0)
+  const stateRef = useRef({ currentTime, duration, id: book.id, isPlaying })
+
+  useEffect(() => {
+    stateRef.current = { currentTime, duration, id: book.id, isPlaying }
+  }, [currentTime, duration, book.id, isPlaying])
+
+  // Periodic progress saving effect
+  useEffect(() => {
+    if (isLoading || !duration) return
+
+    const saveProgress = (time: number) => {
+      const { duration: dur, id } = stateRef.current
+      if (!dur) return
+      const progress = parseFloat((time / dur).toFixed(4))
+      lastSavedTimeRef.current = time
+      saveBookProgress(id, {
+        progress: Math.min(1, Math.max(0, progress)),
+        progress_location: String(time),
+        read_status: progress >= 0.99 ? 'finished' : 'reading'
+      }).catch(err => console.error('Failed to save audio progress:', err))
+    }
+
+    if (!isPlaying) {
+      if (Math.abs(currentTime - lastSavedTimeRef.current) > 1) {
+        saveProgress(currentTime)
+      }
+      return
+    }
+
+    const interval = setInterval(() => {
+      const { currentTime: currTime } = stateRef.current
+      if (Math.abs(currTime - lastSavedTimeRef.current) >= 5) {
+        saveProgress(currTime)
+      }
+    }, 5000)
+
+    return () => {
+      clearInterval(interval)
+    }
+  }, [isPlaying, duration, isLoading])
+
+  // Save progress on unmount
+  useEffect(() => {
+    return () => {
+      const { currentTime: currTime, duration: dur, id } = stateRef.current
+      if (dur && currTime > 0) {
+        const progress = parseFloat((currTime / dur).toFixed(4))
+        saveBookProgress(id, {
+          progress: Math.min(1, Math.max(0, progress)),
+          progress_location: String(currTime),
+          read_status: progress >= 0.99 ? 'finished' : 'reading'
+        }).catch(err => console.error('Failed to save audio progress on unmount:', err))
+      }
+    }
+  }, [])
 
   // Find current chapter index
   const currentChapterIndex = metadata?.chapters
@@ -289,8 +347,18 @@ export default function AudiobookPlayer({ book, onClose }: AudiobookPlayerProps)
         onPlay={() => setIsPlaying(true)}
         onPause={() => setIsPlaying(false)}
         onLoadedMetadata={(e) => {
-          setDuration(e.currentTarget.duration)
+          const dur = e.currentTarget.duration
+          setDuration(dur)
           setIsLoading(false)
+          
+          if (book.progress_location) {
+            const startSecs = parseFloat(book.progress_location)
+            if (!isNaN(startSecs) && startSecs > 0 && startSecs < dur) {
+              e.currentTarget.currentTime = startSecs
+              setCurrentTime(startSecs)
+              lastSavedTimeRef.current = startSecs
+            }
+          }
         }}
         onTimeUpdate={(e) => setCurrentTime(e.currentTarget.currentTime)}
         onEnded={() => setIsPlaying(false)}

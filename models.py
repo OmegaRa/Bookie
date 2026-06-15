@@ -74,6 +74,11 @@ class Book(db.Model):
     audio_format = db.Column(db.String(16))  # mp3, m4b, aac, etc.
     chapters = db.Column(db.Text)  # JSON array of chapter info
 
+    # Progress tracking
+    read_status = db.Column(db.String(32), default="unread", nullable=False, server_default="unread")
+    progress = db.Column(db.Float, default=0.0, nullable=False, server_default="0.0")
+    progress_location = db.Column(db.Text, nullable=True)
+
     # Timestamps
     date_added = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
     date_modified = db.Column(
@@ -118,6 +123,9 @@ class Book(db.Model):
             "narrator": self.narrator,
             "audio_format": self.audio_format,
             "chapters": self.chapters,
+            "read_status": self.read_status,
+            "progress": self.progress,
+            "progress_location": self.progress_location,
             "date_added": self.date_added.isoformat() if self.date_added else None,
             "date_modified": self.date_modified.isoformat() if self.date_modified else None,
             "tags": [bt.tag.name for bt in self.book_tags],
