@@ -52,7 +52,7 @@ jobs:
       - name: Prepare Variables
         id: prep
         run: |
-          echo "image_name=${GITHUB_REPOSITORY_OWNER,,}/bookie" >> $GITHUB_OUTPUT
+          echo "image_name=${GITHUB_REPOSITORY_OWNER,,}" >> $GITHUB_OUTPUT
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
