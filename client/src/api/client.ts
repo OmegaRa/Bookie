@@ -367,6 +367,12 @@ export function bulkRename(apply: boolean): Promise<BulkRenameResponse> {
   })
 }
 
+export function cleanAuthors(): Promise<{ updated: number }> {
+  return api<{ updated: number }>('/api/library/clean-authors', {
+    method: 'POST',
+  })
+}
+
 // ─── Logs ─────────────────────────────────────────────────────────────────────
 
 export function getLogs(level: string): Promise<{ logs: string[] }> {
@@ -511,6 +517,7 @@ export default {
   saveMetadataSources,
   // Bulk rename
   bulkRename,
+  cleanAuthors,
   // Logs
   getLogs,
   setLogLevel,

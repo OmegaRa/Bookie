@@ -1259,6 +1259,23 @@ def create_app():
             db.session.commit()
         return jsonify({"results": results, "errors": errors, "applied": apply})
 
+    @app.route("/api/library/clean-authors", methods=["POST"])
+    @login_required
+    def clean_authors():
+        """Find any author formatted as "Lastname, Firstname" (exactly one comma) and swap them to "Firstname Lastname"."""
+        books = Book.query.filter(Book.author.like("%,%")).all()
+        updated = 0
+        for book in books:
+            author = book.author
+            if author and author.count(",") == 1:
+                parts = [p.strip() for p in author.split(",")]
+                new_author = f"{parts[1]} {parts[0]}"
+                book.author = new_author
+                updated += 1
+        if updated > 0:
+            db.session.commit()
+        return jsonify({"success": True, "updated": updated})
+
     # -----------------------------------------------------------------------
     # Metadata
     # -----------------------------------------------------------------------

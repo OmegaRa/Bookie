@@ -268,6 +268,16 @@ function LibraryTab() {
     onError: (e: Error) => addToast('error', e.message),
   })
 
+  const cleanAuthorsMutation = useMutation({
+    mutationFn: () => api.cleanAuthors(),
+    onSuccess: (res) => {
+      addToast('success', `Successfully cleaned ${res.updated} author name(s).`)
+      qc.invalidateQueries({ queryKey: ['books'] })
+      qc.invalidateQueries({ queryKey: ['stats'] })
+    },
+    onError: (e: Error) => addToast('error', e.message),
+  })
+
   function formatBytes(bytes: number | null | undefined) {
     if (bytes == null || !isFinite(bytes) || bytes < 0) return '—'
     if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
@@ -375,6 +385,24 @@ function LibraryTab() {
             {bulkErrors.map((e, i) => <div key={i} className="py-1 text-danger">{e.original}: {e.error}</div>)}
           </div>
         )}
+      </section>
+
+      {/* Clean Author Names */}
+      <section className="card p-5 space-y-4">
+        <h2 className="text-sm font-semibold text-ink">Clean Author Names</h2>
+        <p className="text-xs text-ink-muted">
+          Find and format any authors listed as <code className="bg-surface-raised px-1.5 py-0.5 rounded font-mono">Lastname, Firstname</code> (exactly one comma) to <code className="bg-surface-raised px-1.5 py-0.5 rounded font-mono">Firstname Lastname</code>.
+        </p>
+        <div className="flex gap-2">
+          <button
+            className="btn-primary text-sm"
+            onClick={() => cleanAuthorsMutation.mutate()}
+            disabled={cleanAuthorsMutation.isPending}
+          >
+            {cleanAuthorsMutation.isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin mr-1.5" /> : null}
+            Clean Author Names
+          </button>
+        </div>
       </section>
 
       {/* Library stats at bottom */}
