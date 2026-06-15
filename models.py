@@ -112,6 +112,11 @@ class Book(db.Model):
         db.Index("ix_books_series", "series"),
     )
 
+    def __init__(self, **kwargs):
+        super().__init__()
+        for k, v in kwargs.items():
+            setattr(self, k, v)
+
     def to_dict(self):
         return {
             "id": self.id,
