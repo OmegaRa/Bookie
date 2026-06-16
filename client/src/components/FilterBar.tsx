@@ -30,6 +30,7 @@ const FORMAT_OPTIONS = [
 const SORT_OPTIONS = [
   { value: 'author', label: 'Author' },
   { value: 'title', label: 'Title' },
+  { value: 'type', label: 'Type' },
   { value: 'series', label: 'Series' },
   { value: 'published_date', label: 'Published Year' },
   { value: 'date_added', label: 'Date Added' },

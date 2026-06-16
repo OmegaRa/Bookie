@@ -655,7 +655,7 @@ def create_app():
         tag = request.args.get("tag")
         if tag:
             query = query.join(BookTag, BookTag.book_id == Book.id).join(Tag, Tag.id == BookTag.tag_id).filter(Tag.name == tag)
-        _SORT_COLS = {"author", "title", "series", "published_date", "date_added", "file_size", "rating"}
+        _SORT_COLS = {"author", "title", "type", "series", "published_date", "date_added", "file_size", "rating"}
         sort = request.args.get("sort", "author")
         if sort not in _SORT_COLS:
             sort = "author"
@@ -695,6 +695,20 @@ def create_app():
                     db.case((Book.series_order.is_(None), 1), else_=0).asc(),
                     Book.series_order.asc(),
                     Book.title.asc(),
+                )
+        elif sort == "type":
+            # Sort by is_audiobook (ebooks vs audiobooks), then author, then title
+            if order == "desc":
+                query = query.order_by(
+                    Book.is_audiobook.desc(),
+                    Book.author.desc(),
+                    Book.title.desc()
+                )
+            else:
+                query = query.order_by(
+                    Book.is_audiobook.asc(),
+                    Book.author.asc(),
+                    Book.title.asc()
                 )
         elif sort == "title":
             # Sort by title, stripping leading articles (A, An, The)

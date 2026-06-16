@@ -79,6 +79,7 @@ export interface BooksResponse {
 export type SortField =
   | 'title'
   | 'author'
+  | 'type'
   | 'series'
   | 'date_added'
   | 'date_modified'
