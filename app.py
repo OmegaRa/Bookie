@@ -882,7 +882,10 @@ def create_app():
         # Auto-fetch from online sources to fill remaining gaps
         auto_meta = Settings.get("auto_metadata", "false")
         if auto_meta == "true":
-            _auto_fetch_metadata(book)
+            try:
+                _auto_fetch_metadata(book)
+            except Exception as exc:
+                logger.warning("Auto-fetch metadata failed for uploaded book %s: %s", book.id, exc)
 
         # Apply renaming scheme + folder organization
         _rename_and_organize(book, dest)
@@ -975,7 +978,10 @@ def create_app():
             book = Book.query.get(book_id)
             if not book:
                 continue
-            _auto_fetch_metadata(book)
+            try:
+                _auto_fetch_metadata(book)
+            except Exception as exc:
+                logger.warning("Bulk auto-fetch metadata failed for book %s: %s", book_id, exc)
             updated += 1
             if updated < len(ids):
                 time.sleep(1)  # be polite to metadata sources
@@ -1272,6 +1278,12 @@ def create_app():
                 new_author = f"{parts[1]} {parts[0]}"
                 book.author = new_author
                 updated += 1
+                file_path = get_book_path(book)
+                if file_path.exists():
+                    try:
+                        _rename_and_organize(book, file_path)
+                    except Exception as exc:
+                        logger.warning("Rename after author clean failed for book %s: %s", book.id, exc)
         if updated > 0:
             db.session.commit()
         return jsonify({"success": True, "updated": updated})
@@ -1289,28 +1301,34 @@ def create_app():
         query = data.get("query") or book.isbn or book.isbn13 or book.title or ""
         apply_to_book = data.get("apply", False)
 
-        results = scraper.search_all_sources(query)
-
-        if apply_to_book and results:
-            _apply_metadata(book, results[0])
-
-        return jsonify(results)
+        try:
+            results = scraper.search_all_sources(query)
+            if apply_to_book and results:
+                _apply_metadata(book, results[0])
+            return jsonify(results)
+        except Exception as exc:
+            logger.exception("Failed to fetch metadata for book %s: %s", book_id, exc)
+            return jsonify({"error": f"Failed to fetch metadata: {str(exc)}"}), 500
 
     @app.route("/api/books/<int:book_id>/apply-metadata", methods=["POST"])
     @login_required
     def apply_metadata(book_id):
         book = Book.query.get_or_404(book_id)
         meta = request.get_json(silent=True) or {}
-        # Explicit user selection always replaces all fields
-        _apply_metadata(book, meta, replace_missing_only=False)
-        # Re-apply rename/organize after metadata import
-        file_path = get_book_path(book)
-        if file_path.exists():
-            try:
-                _rename_and_organize(book, file_path)
-            except Exception as exc:
-                logger.warning("Rename after metadata apply failed for book %s: %s", book_id, exc)
-        return jsonify(book.to_dict())
+        try:
+            # Explicit user selection always replaces all fields
+            _apply_metadata(book, meta, replace_missing_only=False)
+            # Re-apply rename/organize after metadata import
+            file_path = get_book_path(book)
+            if file_path.exists():
+                try:
+                    _rename_and_organize(book, file_path)
+                except Exception as exc:
+                    logger.warning("Rename after metadata apply failed for book %s: %s", book_id, exc)
+            return jsonify(book.to_dict())
+        except Exception as exc:
+            logger.exception("Failed to apply metadata for book %s: %s", book_id, exc)
+            return jsonify({"error": f"Failed to apply metadata: {str(exc)}"}), 500
 
     @app.route("/api/metadata/search", methods=["GET"])
     @login_required

@@ -134,23 +134,26 @@ def search_itunes(query: str, max_results: int = 10) -> list[dict]:
         data = r.json()
         results = []
         for item in data.get("results", []):
-            raw_cover = item.get("artworkUrl100", "")
-            # Upgrade thumbnail to high-res
-            cover_url = raw_cover.replace("100x100bb", "1500x1500bb") if raw_cover else None
-            results.append({
-                "source": "itunes",
-                "title": item.get("trackName"),
-                "author": item.get("artistName"),
-                "publisher": item.get("sellerName"),
-                "published_date": (item.get("releaseDate") or "")[:4],
-                "page_count": None,
-                "categories": ", ".join(item.get("genres", [])),
-                "language": None,
-                "isbn": None,
-                "isbn13": None,
-                "rating": None,
-                "cover_url": cover_url,
-            })
+            try:
+                raw_cover = item.get("artworkUrl100", "")
+                # Upgrade thumbnail to high-res
+                cover_url = raw_cover.replace("100x100bb", "1500x1500bb") if raw_cover else None
+                results.append({
+                    "source": "itunes",
+                    "title": item.get("trackName"),
+                    "author": item.get("artistName"),
+                    "publisher": item.get("sellerName"),
+                    "published_date": (item.get("releaseDate") or "")[:4],
+                    "page_count": None,
+                    "categories": ", ".join(item.get("genres", [])),
+                    "language": None,
+                    "isbn": None,
+                    "isbn13": None,
+                    "rating": None,
+                    "cover_url": cover_url,
+                })
+            except Exception as e:
+                logger.warning("Failed to parse iTunes item: %s", e)
         return results
     except Exception as exc:
         logger.warning("Apple Books search failed: %s", exc)
