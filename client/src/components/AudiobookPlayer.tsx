@@ -239,12 +239,19 @@ export default function AudiobookPlayer({ book, onClose }: AudiobookPlayerProps)
               {metadata?.narrator && <span>Narrated by {metadata.narrator}</span>}
             </div>
           )}
-          {metadata?.chapters && currentChapterIndex !== -1 && (
-            <div className="text-xs font-semibold text-accent mt-2 flex items-center justify-center gap-1.5">
-              <BookOpen size={12} />
-              <span>{metadata.chapters[currentChapterIndex].title}</span>
-            </div>
-          )}
+          <div className="text-xs font-semibold mt-2 flex items-center justify-center gap-1.5">
+            {metadata?.chapters && metadata.chapters.length > 0 && currentChapterIndex !== -1 ? (
+              <span className="text-accent flex items-center gap-1.5">
+                <BookOpen size={12} />
+                <span>{metadata.chapters[currentChapterIndex].title}</span>
+              </span>
+            ) : (
+              <span className="text-ink-faint flex items-center gap-1.5">
+                <BookOpen size={12} />
+                <span>No chapters available</span>
+              </span>
+            )}
+          </div>
         </div>
 
         {/* Progress Bar */}
@@ -350,7 +357,7 @@ export default function AudiobookPlayer({ book, onClose }: AudiobookPlayerProps)
           </div>
           
           <div className="w-32 flex justify-end relative">
-            {metadata?.chapters && metadata.chapters.length > 0 && (
+            {metadata?.chapters && metadata.chapters.length > 0 ? (
               <>
                 <button
                   type="button"
@@ -383,6 +390,16 @@ export default function AudiobookPlayer({ book, onClose }: AudiobookPlayerProps)
                   </div>
                 )}
               </>
+            ) : (
+              <button
+                type="button"
+                disabled
+                className="p-2 rounded-full text-ink-faint cursor-not-allowed opacity-40"
+                aria-label="No chapters available"
+                title="No chapters available"
+              >
+                <BookOpen size={18} />
+              </button>
             )}
           </div>
         </div>
