@@ -1,4 +1,5 @@
-<img width="98" alt="bookie-icon" src="./static/favicon.svg" />
+<img width="98" height="98" alt="Bookie-Plus-new" src="https://github.com/user-attachments/assets/e972297c-ea9f-4b56-a3a5-02f019f1f914" />
+
 
 # Bookie+
 
