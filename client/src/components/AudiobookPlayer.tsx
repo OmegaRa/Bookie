@@ -32,6 +32,9 @@ export default function AudiobookPlayer({ book, onClose }: AudiobookPlayerProps)
   const [metadata, setMetadata] = useState<AudiobookMetadata | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [showChapters, setShowChapters] = useState(false)
+  const [playbackSpeed, setPlaybackSpeed] = useState(1.0)
+  const [showSpeedMenu, setShowSpeedMenu] = useState(false)
+  const speedOptions = [0.5, 0.75, 1.0, 1.25, 1.5, 1.75, 2.0, 2.5]
 
   const lastSavedTimeRef = useRef<number>(0)
   const stateRef = useRef({ currentTime, duration, id: book.id, isPlaying })
@@ -39,6 +42,12 @@ export default function AudiobookPlayer({ book, onClose }: AudiobookPlayerProps)
   useEffect(() => {
     stateRef.current = { currentTime, duration, id: book.id, isPlaying }
   }, [currentTime, duration, book.id, isPlaying])
+
+  useEffect(() => {
+    if (audioRef.current) {
+      audioRef.current.playbackRate = playbackSpeed
+    }
+  }, [playbackSpeed])
 
   // Periodic progress saving effect
   useEffect(() => {
@@ -147,6 +156,16 @@ export default function AudiobookPlayer({ book, onClose }: AudiobookPlayerProps)
     if (newVolume > 0 && isMuted) {
       setIsMuted(false)
     }
+  }
+
+  const toggleSpeedMenu = () => {
+    setShowSpeedMenu(prev => !prev)
+    setShowChapters(false)
+  }
+
+  const toggleChapters = () => {
+    setShowChapters(prev => !prev)
+    setShowSpeedMenu(false)
   }
 
   const handleMuteToggle = () => {
@@ -296,8 +315,38 @@ export default function AudiobookPlayer({ book, onClose }: AudiobookPlayerProps)
             />
           </div>
 
-          <div className="text-xs text-ink-faint hidden sm:block">
-            {metadata?.format?.toUpperCase()}
+          <div className="flex items-center gap-3">
+            <div className="relative">
+              <button
+                type="button"
+                onClick={toggleSpeedMenu}
+                className="px-2.5 py-1 text-xs font-semibold rounded-md border border-line bg-surface-high text-ink hover:border-line-strong transition-colors"
+                aria-label="Select playback speed"
+              >
+                {playbackSpeed}x
+              </button>
+              {showSpeedMenu && (
+                <div className="absolute bottom-8 left-1/2 -translate-x-1/2 z-20 w-24 max-h-48 overflow-y-auto rounded-lg border border-line bg-surface-raised shadow-xl p-1 flex flex-col gap-0.5">
+                  {speedOptions.map((speed) => (
+                    <button
+                      key={speed}
+                      type="button"
+                      onClick={() => {
+                        setPlaybackSpeed(speed)
+                        setShowSpeedMenu(false)
+                      }}
+                      className={['text-center text-xs py-1 rounded transition-colors', playbackSpeed === speed ? 'bg-accent/15 text-accent font-semibold' : 'text-ink hover:bg-surface-high'].join(' ')}
+                    >
+                      {speed}x
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div className="text-xs text-ink-faint hidden sm:block uppercase">
+              {metadata?.format}
+            </div>
           </div>
           
           <div className="w-32 flex justify-end relative">
@@ -305,7 +354,7 @@ export default function AudiobookPlayer({ book, onClose }: AudiobookPlayerProps)
               <>
                 <button
                   type="button"
-                  onClick={() => setShowChapters(!showChapters)}
+                  onClick={toggleChapters}
                   className={['p-2 rounded-full transition-colors', showChapters ? 'bg-surface-high text-accent' : 'text-ink-muted hover:text-ink hover:bg-surface-high'].join(' ')}
                   aria-label="Toggle chapter list"
                 >
@@ -344,12 +393,18 @@ export default function AudiobookPlayer({ book, onClose }: AudiobookPlayerProps)
       <audio
         ref={audioRef}
         src={`/api/audiobooks/${book.id}/stream`}
-        onPlay={() => setIsPlaying(true)}
+        onPlay={() => {
+          setIsPlaying(true)
+          if (audioRef.current) {
+            audioRef.current.playbackRate = playbackSpeed
+          }
+        }}
         onPause={() => setIsPlaying(false)}
         onLoadedMetadata={(e) => {
           const dur = e.currentTarget.duration
           setDuration(dur)
           setIsLoading(false)
+          e.currentTarget.playbackRate = playbackSpeed
           
           if (book.progress_location) {
             const startSecs = parseFloat(book.progress_location)
