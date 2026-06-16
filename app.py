@@ -15,7 +15,10 @@ import xml.etree.ElementTree as ET
 from datetime import timedelta, date
 from pathlib import Path
 
+import mimetypes
 import crypto
+
+mimetypes.add_type("application/javascript", ".mjs")
 
 
 DATA_DIR = Path(os.environ.get("DATA_DIR", "data"))
